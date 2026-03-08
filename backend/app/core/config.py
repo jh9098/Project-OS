@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 from typing import List
 
@@ -14,7 +15,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str = 'change-this-secret-key'
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     DATABASE_URL: str = 'sqlite:///./app.db'
-    CORS_ORIGINS: List[str] | str = ['http://localhost:3000']
+    CORS_ORIGINS: List[str] | str = [
+        'http://localhost:3000',
+        'https://projectosall.netlify.app',
+    ]
     ADMIN_USERNAME: str = 'admin'
     ADMIN_PASSWORD: str = 'admin1234'
 
@@ -22,7 +26,20 @@ class Settings(BaseSettings):
     @classmethod
     def parse_cors_origins(cls, value):
         if isinstance(value, str):
-            return [item.strip() for item in value.split(',') if item.strip()]
+            raw_value = value.strip()
+            if not raw_value:
+                return []
+
+            if raw_value.startswith('['):
+                try:
+                    parsed = json.loads(raw_value)
+                except json.JSONDecodeError:
+                    parsed = None
+
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+
+            return [item.strip() for item in raw_value.split(',') if item.strip()]
         return value
 
 
