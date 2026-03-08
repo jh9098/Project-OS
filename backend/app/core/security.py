@@ -7,7 +7,11 @@ from passlib.context import CryptContext
 from app.core.config import get_settings
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+# NOTE:
+# - bcrypt has a 72-byte password input limit and may fail on newer Python/runtime
+#   combos when backend packages are mismatched.
+# - pbkdf2_sha256 avoids that hard length limit and is fully supported by passlib.
+pwd_context = CryptContext(schemes=['pbkdf2_sha256', 'bcrypt'], deprecated='auto')
 ALGORITHM = 'HS256'
 
 
