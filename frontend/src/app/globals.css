@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}
+
+a {
+  @apply text-inherit no-underline;
+}
+
+input,
+textarea,
+select {
+  @apply rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400;
+}
+
+textarea {
+  @apply min-h-[120px];
+}
+
+button {
+  @apply transition;
+}
+
+.card {
+  @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+}
+
+.card-section {
+  @apply p-5;
+}
+
+.page-title {
+  @apply text-2xl font-bold tracking-tight text-slate-900;
+}
+
+.page-description {
+  @apply text-sm text-slate-500;
+}
