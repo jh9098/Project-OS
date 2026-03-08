@@ -1,4 +1,3 @@
-import { LoginResponse } from "@/types/auth";
 import { DashboardSummary } from "@/types/dashboard";
 import { Note, NotePayload } from "@/types/note";
 import { Project, ProjectPayload } from "@/types/project";
@@ -59,13 +58,6 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 }
 
 export const api = {
-  login: (username: string, password: string) =>
-    apiRequest<LoginResponse>("/auth/login", {
-      method: "POST",
-      auth: false,
-      body: JSON.stringify({ username, password })
-    }),
-
   me: () => apiRequest("/auth/me"),
 
   getDashboardSummary: () => apiRequest<DashboardSummary>("/dashboard/summary"),
