@@ -29,9 +29,9 @@ export default function SettingsPage() {
         </div>
 
         <div className="card p-5">
-          <h3 className="text-lg font-bold text-slate-900">API 연결</h3>
+          <h3 className="text-lg font-bold text-slate-900">데이터 저장 방식</h3>
           <p className="mt-4 break-all rounded-xl bg-slate-100 p-4 text-sm text-slate-700">
-            {process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1"}
+            브라우저 LocalStorage (오프라인 로컬 모드)
           </p>
 
           <div className="mt-4">

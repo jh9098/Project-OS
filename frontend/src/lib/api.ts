@@ -4,13 +4,7 @@ import { Project, ProjectPayload } from "@/types/project";
 import { Relation, RelationPayload } from "@/types/relation";
 import { Task, TaskPayload } from "@/types/task";
 import { PaginatedResponse } from "@/types/common";
-import { toQueryString } from "@/lib/utils";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
-
-type RequestOptions = RequestInit & {
-  auth?: boolean;
-};
+import { localDbApi } from "@/lib/local-db";
 
 export class ApiError extends Error {
   status: number;
@@ -26,113 +20,87 @@ export function getToken() {
   return window.localStorage.getItem("project_os_token");
 }
 
-async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { auth = true, headers, ...rest } = options;
-  const token = getToken();
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      "Content-Type": "application/json",
-      ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers
-    }
-  });
-
-  if (!response.ok) {
-    let message = "요청 처리 중 오류가 발생했습니다.";
-    try {
-      const data = await response.json();
-      message = data.detail || message;
-    } catch {
-      //
-    }
-    throw new ApiError(message, response.status);
+async function localRequest<T>(action: () => T): Promise<T> {
+  try {
+    return action();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "로컬 데이터 처리 중 오류가 발생했습니다.";
+    throw new ApiError(message, 400);
   }
-
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  return response.json() as Promise<T>;
 }
 
 export const api = {
-  me: () => apiRequest("/auth/me"),
+  me: () => localRequest(() => localDbApi.me()),
 
-  getDashboardSummary: () => apiRequest<DashboardSummary>("/dashboard/summary"),
+  getDashboardSummary: () => localRequest<DashboardSummary>(() => localDbApi.getDashboardSummary()),
 
   getProjects: (params: Record<string, string | number | boolean | undefined>) =>
-    apiRequest<PaginatedResponse<Project>>(`/projects${toQueryString(params)}`),
+    localRequest<PaginatedResponse<Project>>(() =>
+      localDbApi.getProjects({
+        ...params,
+        page: Number(params.page || 1),
+        limit: Number(params.limit || 50)
+      })
+    ),
 
-  getProject: (projectId: string) => apiRequest<Project>(`/projects/${projectId}`),
+  getProject: (projectId: string) => localRequest<Project>(() => localDbApi.getProject(projectId)),
 
-  createProject: (payload: ProjectPayload) =>
-    apiRequest<Project>("/projects", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
+  createProject: (payload: ProjectPayload) => localRequest<Project>(() => localDbApi.createProject(payload)),
 
   updateProject: (projectId: string, payload: Partial<ProjectPayload>) =>
-    apiRequest<Project>(`/projects/${projectId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
+    localRequest<Project>(() => localDbApi.updateProject(projectId, payload)),
 
-  deleteProject: (projectId: string) =>
-    apiRequest<{ ok: boolean }>(`/projects/${projectId}`, { method: "DELETE" }),
+  deleteProject: (projectId: string) => localRequest<{ ok: boolean }>(() => localDbApi.deleteProject(projectId)),
 
   getTasks: (params: Record<string, string | number | boolean | undefined>) =>
-    apiRequest<PaginatedResponse<Task>>(`/tasks${toQueryString(params)}`),
+    localRequest<PaginatedResponse<Task>>(() =>
+      localDbApi.getTasks({
+        ...params,
+        page: Number(params.page || 1),
+        limit: Number(params.limit || 100)
+      })
+    ),
 
-  getTask: (taskId: string) => apiRequest<Task>(`/tasks/${taskId}`),
+  getTask: (taskId: string) => localRequest<Task>(() => localDbApi.getTask(taskId)),
 
-  createTask: (payload: TaskPayload) =>
-    apiRequest<Task>("/tasks", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
+  createTask: (payload: TaskPayload) => localRequest<Task>(() => localDbApi.createTask(payload)),
 
   updateTask: (taskId: string, payload: Partial<TaskPayload>) =>
-    apiRequest<Task>(`/tasks/${taskId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
+    localRequest<Task>(() => localDbApi.updateTask(taskId, payload)),
 
-  deleteTask: (taskId: string) =>
-    apiRequest<{ ok: boolean }>(`/tasks/${taskId}`, { method: "DELETE" }),
+  deleteTask: (taskId: string) => localRequest<{ ok: boolean }>(() => localDbApi.deleteTask(taskId)),
 
   getRelations: (params: Record<string, string | number | boolean | undefined>) =>
-    apiRequest<PaginatedResponse<Relation>>(`/relations${toQueryString(params)}`),
+    localRequest<PaginatedResponse<Relation>>(() =>
+      localDbApi.getRelations({
+        ...params,
+        page: Number(params.page || 1),
+        limit: Number(params.limit || 100)
+      })
+    ),
 
-  createRelation: (payload: RelationPayload) =>
-    apiRequest<Relation>("/relations", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
+  createRelation: (payload: RelationPayload) => localRequest<Relation>(() => localDbApi.createRelation(payload)),
 
   deleteRelation: (relationId: string) =>
-    apiRequest<{ ok: boolean }>(`/relations/${relationId}`, { method: "DELETE" }),
+    localRequest<{ ok: boolean }>(() => localDbApi.deleteRelation(relationId)),
 
   getNotes: (params: Record<string, string | number | boolean | undefined>) =>
-    apiRequest<PaginatedResponse<Note>>(`/notes${toQueryString(params)}`),
+    localRequest<PaginatedResponse<Note>>(() =>
+      localDbApi.getNotes({
+        ...params,
+        page: Number(params.page || 1),
+        limit: Number(params.limit || 100)
+      })
+    ),
 
-  getNote: (noteId: string) => apiRequest<Note>(`/notes/${noteId}`),
+  getNote: (noteId: string) => localRequest<Note>(() => localDbApi.getNote(noteId)),
 
-  createNote: (payload: NotePayload) =>
-    apiRequest<Note>("/notes", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
+  createNote: (payload: NotePayload) => localRequest<Note>(() => localDbApi.createNote(payload)),
 
   updateNote: (noteId: string, payload: Partial<NotePayload>) =>
-    apiRequest<Note>(`/notes/${noteId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
+    localRequest<Note>(() => localDbApi.updateNote(noteId, payload)),
 
-  deleteNote: (noteId: string) =>
-    apiRequest<{ ok: boolean }>(`/notes/${noteId}`, { method: "DELETE" })
+  deleteNote: (noteId: string) => localRequest<{ ok: boolean }>(() => localDbApi.deleteNote(noteId))
 };
 
-export { apiRequest };
+export const apiRequest = localRequest;
