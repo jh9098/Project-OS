@@ -14,7 +14,7 @@ import { useState } from "react";
 
 export default function ProjectsPage() {
   const [filters, setFilters] = useState<ProjectFilters>({});
-  const { data, isLoading } = useProjects(filters);
+  const { data, isLoading, isError } = useProjects(filters);
 
   return (
     <AppShell>
@@ -32,15 +32,22 @@ export default function ProjectsPage() {
 
       {isLoading ? <LoadingSpinner /> : null}
 
-      {!isLoading && !data?.items.length ? (
-        <EmptyState title="프로젝트가 없습니다." description="새 프로젝트를 등록해 시작하세요." />
+      {!isLoading && isError ? <EmptyState title="프로젝트를 불러오지 못했습니다." /> : null}
+
+      {!isLoading && !isError && !data?.items.length ? (
+        <EmptyState
+          title="아직 프로젝트가 없습니다. 새 프로젝트를 만들어 시작하세요."
+          description="상단의 새 프로젝트 버튼으로 바로 시작할 수 있어요."
+        />
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {data?.items.map((project) => (
-          <ProjectCard key={project.id} project={project} />
-        ))}
-      </div>
+      {!isError ? (
+        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {data?.items.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
+        </div>
+      ) : null}
     </AppShell>
   );
 }
