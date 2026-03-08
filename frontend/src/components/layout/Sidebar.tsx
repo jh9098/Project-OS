@@ -1,17 +1,9 @@
 "use client";
 
+import { DESKTOP_NAV_ITEMS } from "@/components/layout/nav-items";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/projects", label: "Projects" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/relations", label: "Relations" },
-  { href: "/notes", label: "Notes" },
-  { href: "/settings", label: "Settings" }
-];
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -24,7 +16,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-2 p-4">
-        {navItems.map((item) => {
+        {DESKTOP_NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link

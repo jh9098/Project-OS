@@ -1,17 +1,20 @@
 "use client";
 
-import FocusTaskList from "@/components/dashboard/FocusTaskList";
-import BlockedProjectList from "@/components/dashboard/BlockedProjectList";
-import SummaryCards from "@/components/dashboard/SummaryCards";
-import TodayActionList from "@/components/dashboard/TodayActionList";
 import EmptyState from "@/components/common/EmptyState";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import BlockedProjectList from "@/components/dashboard/BlockedProjectList";
+import DashboardQuickActions from "@/components/dashboard/DashboardQuickActions";
+import FocusTaskList from "@/components/dashboard/FocusTaskList";
+import SummaryCards from "@/components/dashboard/SummaryCards";
+import TodayActionList from "@/components/dashboard/TodayActionList";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/layout/PageHeader";
 import { useDashboardSummary } from "@/hooks/useDashboard";
 
 export default function DashboardPage() {
   const { data, isLoading, isError } = useDashboardSummary();
+
+  const isEmpty = !!data && data.project_counts.total === 0;
 
   return (
     <AppShell>
@@ -20,10 +23,20 @@ export default function DashboardPage() {
         description="전체 프로젝트와 오늘의 실행 우선순위를 한눈에 봅니다."
       />
 
-      {isLoading ? <LoadingSpinner /> : null}
-      {isError || !data ? <EmptyState title="대시보드를 불러오지 못했습니다." /> : null}
+      <DashboardQuickActions />
 
-      {data ? (
+      {isLoading ? <LoadingSpinner /> : null}
+
+      {isError ? <EmptyState title="대시보드를 불러오지 못했습니다." /> : null}
+
+      {!isLoading && !isError && isEmpty ? (
+        <EmptyState
+          title="아직 프로젝트가 없습니다. 새 프로젝트를 만들어 시작하세요."
+          description="상단 빠른 실행에서 바로 프로젝트를 만들 수 있어요."
+        />
+      ) : null}
+
+      {data && !isEmpty ? (
         <div className="space-y-6">
           <SummaryCards summary={data} />
 
