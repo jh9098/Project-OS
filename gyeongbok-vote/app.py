@@ -13,6 +13,8 @@ ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD","")
 IS_PG=bool(DATABASE_URL)
 
 def connect():
+    if not IS_PG:
+        raise RuntimeError('DATABASE_URL is required for persistent event voting')
     if IS_PG:
         import psycopg2
         from psycopg2.extras import RealDictCursor
@@ -223,35 +225,7 @@ PAGE = """
 <h2>일회용 투표코드</h2><p class="note">참가자 1인당 1개씩 발급합니다. 코드는 최초 발급 화면에서만 확인할 수 있으니 저장하세요.</p><div class="row"><select id="codeteam"><option value="1">1조</option><option value="2">2조</option><option value="3">3조</option><option value="4">4조</option><option value="5">5조</option></select><input type="number" id="codecount" value="6" min="1" max="50" style="width:85px"><button class="mini" onclick="codes()">코드 발급</button></div><div id="codes"></div>
 </div></section>
 <footer class="foot">2026 HEALING DAY · PRIVATE EVENT VOTING</footer></div>
-<script>
-let state=null,my=0,photo=0,video=0,finished=false;
-const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function notify(s){$('msg').innerHTML=s?'<div class="msg">'+esc(s)+'</div>':'';}
-async function api(path,data,files=false){const r=await fetch(path,{method:'POST',headers:files?{}:{'Content-Type':'application/json'},body:files?data:JSON.stringify(data),credentials:'same-origin'});let j;try{j=await r.json()}catch{throw Error('서버 응답을 확인해주세요.')}if(!r.ok||j.error)throw Error(j.error||'처리 오류');return j;}
-function tab(t){['vote','result','admin'].forEach(x=>{$(x).style.display=x===t?'block':'none';$('nav-'+x).classList.toggle('on',x===t)});refresh();}
-async function refresh(){try{state=await(await fetch('/api/state',{cache:'no-store'})).json();render();}catch(e){notify('연결 오류: '+e.message)}}
-function render(){if(!state)return;
- $('vote-status').textContent=state.vote_open?'● 투표 진행 중':'● 투표 대기 또는 종료';
- $('myteams').innerHTML=[1,2,3,4,5].map(t=>'<button class="'+(my===t?'sel':'')+'" onclick="setmy('+t+')">'+t+'조</button>').join('');
- const list=type=>state.teams.filter(t=>t.team!==my).map(t=>'<div class="item '+((type==='photo'?photo:video)===t.team?'pick':'')+'"><div class="media">'+(t[type]?type==='photo'?'<img alt="'+t.team+'조 사진" src="/api/media/'+t.team+'/photo?v='+t.photo_title.length+'">':'<video controls playsinline preload="metadata" src="/api/media/'+t.team+'/video"></video>':'작품 준비 중')+'</div><button '+(!my||!t[type]?'disabled':'')+' onclick="pick(\''+type+'\','+t.team+')"><span>'+t.team+'조 <small>'+esc(t[type+'_title']||'경복궁 작품')+'</small></span><b>'+((type==='photo'?photo:video)===t.team?'✓':'○')+'</b></button></div>').join('');
- $('photos').innerHTML=list('photo');$('videos').innerHTML=list('video');
- $('submit').disabled=!state.vote_open||!my||!photo||!video||finished;
- $('submit').textContent=state.vote_open?'투표 완료하기':'투표 시작 전입니다';
- $('thank').style.display=finished?'block':'none';$('votebody').style.display=finished?'none':'block';
- $('login').style.display=state.admin?'none':'block';$('admin-body').style.display=state.admin?'block':'none';
- if(state.admin){$('dbstate').textContent='저장 방식: '+state.database;$('toggles').textContent='투표: '+(state.vote_open?'진행 중':'대기')+' / 결과: '+(state.reveal?'공개':'비공개');$('admteams').innerHTML=state.teams.map(t=>'<div class="adminteam"><b>'+t.team+'조</b><small> 사진 '+(t.photo?'등록':'미등록')+' · 영상 '+(t.video?'등록':'미등록')+'</small><label>사진 제목</label><input id="pt'+t.team+'" value="'+esc(t.photo_title)+'"><label>영상 제목</label><input id="vt'+t.team+'" value="'+esc(t.video_title)+'"><label>미션 점수 (0~70점)</label><input id="sc'+t.team+'" type="number" min="0" max="70" value="'+t.mission_score+'"><div class="row"><button class="mini" onclick="saveTeam('+t.team+')">설정 저장</button><label class="mini">사진 업로드<input type="file" style="display:none" accept="image/jpeg,image/png,image/webp" onchange="upload('+t.team+',\'photo\',this.files[0])"></label><label class="mini">영상 업로드<input type="file" style="display:none" accept="video/mp4,video/webm" onchange="upload('+t.team+',\'video\',this.files[0])"></label></div></div>').join('');}
- if(state.counts){const ranked=state.teams.map(t=>{const x=state.counts[t.team];return {team:t.team,mission:Number(t.mission_score),p:x.photo,v:x.video,issued:x.issued,used:x.used}});const getRank=(key,t)=>1+ranked.filter(y=>y[key]>t[key]).length;for(const t of ranked){t.pScore=t.p?Math.max(2,12-getRank('p',t)*2):0;t.vScore=t.v?Math.max(4,24-getRank('v',t)*4):0;t.total=t.mission+t.pScore+t.vScore;}ranked.sort((a,b)=>b.total-a.total||b.v-a.v||a.team-b.team);$('result-body').innerHTML=ranked.map((t,i)=>'<div class="rank"><strong>'+(i+1)+'위</strong><span>'+t.team+'조<br><small>미션 '+t.mission+' · 사진 '+t.pScore+'('+t.p+'표) · 영상 '+t.vScore+'('+t.v+'표)</small></span><b>'+t.total+'점</b></div>').join('')+(state.admin?'<p class="note">'+ranked.map(t=>t.team+'조: '+t.used+'/'+t.issued+'명 참여').join(' / ')+'</p>':'');}else $('result-body').innerHTML='<p class="muted">집계 결과는 아직 비공개입니다.</p>';
-}
-function setmy(t){my=t;photo=0;video=0;render()}function pick(type,t){if(type==='photo')photo=t;else video=t;render();}
-async function vote(){try{const code=$('code').value.toUpperCase().replace(/[^A-Z0-9]/g,'');const r=await api('/api/vote',{code,photo,video});finished=true;notify('');render();}catch(e){notify(e.message)}}
-async function login(){try{await api('/api/login',{password:$('password').value});$('password').value='';notify('');refresh()}catch(e){notify(e.message)}}
-async function logout(){await api('/api/logout',{});refresh()}
-async function setting(key){try{await api('/api/admin/settings',{key,value:!state[key]});refresh()}catch(e){notify(e.message)}}
-async function saveTeam(t){try{await api('/api/admin/team',{team:t,photo_title:$('pt'+t).value,video_title:$('vt'+t).value,score:Number($('sc'+t).value)});notify(t+'조 설정 저장 완료');refresh()}catch(e){notify(e.message)}}
-async function upload(t,kind,file){if(!file)return;try{const f=new FormData();f.append('team',t);f.append('kind',kind);f.append('file',file);notify('업로드 중입니다. 이 화면을 닫지 마세요.');await api('/api/admin/upload',f,true);notify(t+'조 업로드 완료');refresh()}catch(e){notify(e.message)}}
-async function codes(){try{const team=Number($('codeteam').value),count=Number($('codecount').value);const j=await api('/api/admin/codes',{team,count});$('codes').innerHTML='<p><b>'+team+'조 발급 코드</b></p><textarea id="newcodes" style="width:100%;height:160px;font-family:monospace" readonly>'+j.codes.join('\\n')+'</textarea><button class="mini" onclick="navigator.clipboard.writeText($(\'newcodes\').value)">코드 전체 복사</button>';notify('코드 발급 완료. 반드시 복사해서 보관해주세요.')}catch(e){notify(e.message)}}
-refresh();setInterval(refresh,25000);
-</script></body></html>
+<script src="/static/vote.js" defer></script></body></html>
 """
 
 if __name__=='__main__':
@@ -260,4 +234,4 @@ if __name__=='__main__':
 else:
     # First request starts the schema. Gunicorn imports this module once per worker.
     try:init()
-    except Exception as exc:print('Initial DB not ready:',type(exc).__name__,flush=True)
+    except Exception as exc:print('Initial DB not ready:',type(exc).__name__,str(exc).split('password')[0][:160],flush=True)
