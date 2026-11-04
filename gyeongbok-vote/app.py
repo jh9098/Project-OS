@@ -232,6 +232,6 @@ if __name__=='__main__':
     init()
     app.run(host='0.0.0.0',port=int(os.environ.get('PORT','10000')))
 else:
-    # First request starts the schema. Gunicorn imports this module once per worker.
-    try:init()
-    except Exception as exc:print('Initial DB not ready:',type(exc).__name__,str(exc).split('password')[0][:160],flush=True)
+    # Gunicorn: fail startup when persistent PostgreSQL is not ready.
+    init()
+    print('EVENT_PERSISTENT_POSTGRES_READY: schema initialized', flush=True)
