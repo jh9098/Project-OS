@@ -97,7 +97,7 @@ def public_submission(row):
     return {"id":row["id"],"team":row["team"],"mission_code":row["mission_code"],
       "filename":row["filename"],"mime":row["mime"],"size_bytes":row["size_bytes"],
       "status":row["status"],"is_test":bool(row["is_test"]),
-      "created_at":row["created_at"].isoformat() if row.get("created_at") else ""}
+      "created_at":(row["created_at"].isoformat() if hasattr(row.get("created_at"),"isoformat") else str(row.get("created_at") or ""))}
 
 @mission_bp.get("/mission/<int:team>/<token>")
 def team_mission_page(team,token):
