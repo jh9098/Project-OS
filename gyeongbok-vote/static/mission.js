@@ -47,7 +47,8 @@
   function progressCount() {
     const submitted = c => {const x=statusFor(c);return x.ok+x.pending>=x.need};
     const mandatoryPhoto=submitted('H04') ? 1 : 0;
-    const videoDone=['V01','V02','V03'].some(submitted) ? 1 : 0;
+    const videoDone=(['V01','V02','V03'].some(submitted) ||
+      (!data.test_mode && Boolean(data.organizer_video_uploaded))) ? 1 : 0;
     const extra=data.missions.filter(m=>m.code!=='H04'&&!m.code.startsWith('V') && submitted(m.code)).length;
     return Math.min(6,mandatoryPhoto+videoDone+Math.min(4,extra));
   }
@@ -101,8 +102,11 @@
     $('#bar').style.width=(progressCount()/6*100)+'%';
     const missions=data.missions.filter(m=>m.code==='H04'||m.code.startsWith('V'));
     const others=data.missions.filter(m=>m.code!=='H04'&&!m.code.startsWith('V'));
+    const kakaoVideoState=!data.test_mode&&data.organizer_video_uploaded?
+      '<div class="info-line video-delivery-done"><strong>✅ 영상 제출 확인 완료</strong><br>운영진이 카카오톡으로 받은 우리 조 영상을 투표 사이트에 등록했습니다. 영상 미션이 제출된 것으로 표시됩니다.</div>':'';
     $('#mission-list').innerHTML=
       '<div class="info-line" style="background:#fff1d5"><strong>★ 필수 미션</strong> H04 영화 포스터 + V01~V03 중 영상 하나를 제출하세요.</div>'+
+      kakaoVideoState+
       missions.map(cardMarkup).join('')+
       '<div class="lead"><h2>자유 미션 9개 중 4개</h2><p>쉽고 재미있는 미션을 골라 조원들과 함께 수행하세요.</p></div>'+
       others.map(cardMarkup).join('');
