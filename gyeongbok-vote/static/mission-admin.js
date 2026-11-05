@@ -57,11 +57,12 @@
         '<button class="reject" data-action="rejected" data-id="'+s.id+'">반려</button>'+
         '<button class="danger" data-action="delete" data-id="'+s.id+'">삭제</button>';
       const previewButton='<button class="preview-button" data-preview="'+s.id+'">🔍 '+(s.mime.startsWith('video/')?'영상 크게 재생':'사진 크게 보기')+'</button>';
+      const downloadButton='<a class="file-download" href="/api/admin/mission/download/'+s.id+'">⬇ 다운로드</a>';
       return '<article class="review-card"><div class="review-preview"><button class="preview-thumb" data-preview="'+s.id+'" aria-label="'+(s.mime.startsWith('video/')?'영상 재생':'사진 확대')+'">'+media+'</button></div>'+
         '<div class="review-info"><h3>'+s.team+'조 · '+escape(s.mission_code)+' <span class="tag">'+status+'</span></h3>'+
         '<p>'+escape(s.filename)+' · '+Math.round(s.size_bytes/1024)+'KB</p>'+
         '<p>'+escape(s.created_at.replace('T',' ').slice(0,19))+'</p>'+
-        '<div class="review-buttons">'+previewButton+buttons+'</div></div></article>';
+        '<div class="review-buttons">'+previewButton+downloadButton+buttons+'</div></div></article>';
     }).join(''):'<div class="empty">현재 이 조건에 해당하는 제출 파일이 없습니다.</div>';
     document.querySelectorAll('.admin-filters button').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));
   }
@@ -130,7 +131,8 @@
     }
     media.src=url;
     body.appendChild(media);
-    $('#preview-download').href=url;
+    $('#preview-download').href='/api/admin/mission/download/'+item.id;
+    $('#preview-download').textContent='⬇ 파일 다운로드';
     previewDialog.showModal();
   }
   $('#preview-close').addEventListener('click',closePreview);
