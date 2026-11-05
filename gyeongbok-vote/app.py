@@ -6,7 +6,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
-app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SECURE=True, SESSION_COOKIE_SAMESITE="Lax", MAX_CONTENT_LENGTH=110*1024*1024)
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SECURE=True, SESSION_COOKIE_SAMESITE="Lax", MAX_CONTENT_LENGTH=40*1024*1024)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 DATABASE_URL=os.environ.get("DATABASE_URL","")
 ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD","")
