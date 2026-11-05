@@ -127,7 +127,9 @@ def mission_state(team, token):
         rows = q(db, """SELECT id,team,mission_code,filename,mime,size_bytes,status,is_test,created_at
             FROM mission_submissions WHERE team=?""" + constraint + " ORDER BY created_at DESC",
             (team,), all=True)
+        uploaded_by_admin = q(db,"SELECT video_data IS NOT NULL AS video_ready FROM teams WHERE team=?",(team,))
         return jsonify(ok=True,team=team,uploads_open=bool(config["uploads_open"]),
+            organizer_video_uploaded=bool(uploaded_by_admin["video_ready"]),
             test_mode=global_test,admin_test_preview=bool(wants_admin_tests and session.get("admin")),
             max_video_input_mb=35, max_video_saved_mb=35,missions=mission_content(team),
             submissions=[public_submission(x) for x in rows])
