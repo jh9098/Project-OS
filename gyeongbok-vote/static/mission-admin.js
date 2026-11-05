@@ -23,6 +23,13 @@
   function render() {
     if(!data)return;
     $('#upload-state').textContent=data.uploads_open?'접수 진행 중 · 제출 가능':'제출 마감';
+    const testOn=Boolean(data.test_mode);
+    $('#test-mode-badge').textContent=testOn?'진행 중':'종료 · 실제 행사';
+    $('#test-mode-controls').classList.toggle('test-active',testOn);
+    $('#toggle-test-mode').textContent=testOn?'실제 행사 모드로 전환':'사전 테스트 모드 켜기';
+    $('#test-mode-description').textContent=testOn?
+      '기존 조별 QR에서 업로드한 모든 사진·영상은 자동으로 테스트 자료로 분리됩니다. 실제 점수·투표에 절대 반영되지 않습니다.':
+      '이제 조별 QR에서 올리는 파일은 실제 행사 제출물입니다. 기존 테스트 파일은 아래 일괄 삭제 버튼으로 따로 정리하세요.';
     $('#toggle-uploads').textContent=data.uploads_open?'⏹ 제출 마감하기':'▶ 제출 재개하기';
     const qrMarkup=data.links.map(a=>{
       const url='/api/admin/mission/qr.png?team='+a.team;
@@ -71,13 +78,24 @@
     catch(e){show(e.message)}
   });
   $('#admin-password').addEventListener('keydown',e=>{if(e.key==='Enter')$('#login-button').click()});
+  $('#toggle-test-mode').addEventListener('click',()=>{
+    if(!data)return;
+    if(data.test_mode){
+      const remaining=data.test_count||data.submissions.filter(x=>x.is_test).length;
+      if(!confirm('사전 테스트 모드를 종료하고 실제 행사 제출을 시작할까요?\n\n기존 조별 QR은 그대로 사용하며 이후 업로드는 실제 제출로 저장됩니다.\n기존 테스트 자료 '+remaining+'건은 자동 삭제되지 않습니다. 아래에서 별도로 정리하세요.'))return;
+    }else{
+      if(!confirm('사전 테스트 모드를 다시 켤까요?\n모든 조의 신규 업로드가 실제 점수·투표에서 제외됩니다.'))return;
+    }
+    mutation('/api/admin/mission/test-mode',{enabled:!data.test_mode},
+      data.test_mode?'실제 행사 제출 모드로 전환했습니다. 테스트 파일 일괄 삭제도 확인하세요.':'사전 테스트 모드를 켰습니다. 이제 조별 QR로 연습 제출할 수 있습니다.');
+  });
   $('#toggle-uploads').addEventListener('click',()=>{
     if(!data)return;
     if(data.uploads_open&&!confirm('모든 참가자의 사진·영상 제출을 마감할까요?'))return;
     mutation('/api/admin/mission/uploads',{open:!data.uploads_open},'제출 상태를 변경했습니다.');
   });
   $('#clear-tests').addEventListener('click',()=>{
-    if(!confirm('모든 업로드 테스트 파일을 삭제하시겠습니까? 실제 제출 파일은 유지됩니다.'))return;
+    if(!confirm('테스트로 분류된 모든 사진·영상 파일을 영구 삭제하시겠습니까?\n실제 제출 파일·투표 기록은 삭제하지 않습니다.\n\n행사 시작 전 테스트 파일을 정리할 때 사용하세요.'))return;
     mutation('/api/admin/mission/clear-tests',{},'테스트 파일을 정리했습니다.');
   });
   $('#qr-grid').addEventListener('click',async e=>{
