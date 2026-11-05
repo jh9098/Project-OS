@@ -36,3 +36,11 @@
 .test-note{border:1px solid #e6c991;background:#fff5df;color:#76531e;padding:15px;border-radius:10px;line-height:1.75;margin:5px 0 14px;font-size:13px}
 #test-banner{font-size:13px}
 @media(max-width:650px){#toggle-test-mode{width:100%;text-align:center}.test-mode-controls{padding:16px}}
+
+
+/* Individual downloads: visible beside media previews for staff and organizers */
+.download-file{display:inline-flex;align-items:center;justify-content:center;margin:8px 0 0 8px;padding:8px 10px;border-radius:8px;background:#e7f0f6;border:1px solid #b4ccd9;color:#205b7b;text-decoration:none;font-size:12px;font-weight:850;white-space:nowrap}
+.download-file:hover,.file-download:hover{background:#d6e8f3}
+.review-buttons .file-download{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid #98bbc9;background:#e2f2f5;border-radius:8px;color:#205b72;font-size:12px;font-weight:850;text-decoration:none}
+.preview-download{display:block;padding:16px 20px;text-decoration:none;color:#1b607c;background:#f3f9fb}
+@media(max-width:650px){.download-file{margin-left:0;margin-right:6px}.review-buttons .file-download{flex:1}}
