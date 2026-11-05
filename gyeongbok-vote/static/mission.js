@@ -187,7 +187,7 @@
   });
   refresh();
   setInterval(()=>{
-    if(busy||selectedTab==='missions'&&document.querySelector('video:not([hidden])')?.paused===false)return;
+    if(busy||Array.from(document.querySelectorAll('video')).some(v=>!v.paused&&!v.ended))return;
     refresh();
   },40000);
 })();
