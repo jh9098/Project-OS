@@ -44,9 +44,10 @@
     return {ok,pending,need,done:ok>=need,items};
   }
   function progressCount() {
-    const mandatoryPhoto=statusFor('H04').done ? 1 : 0;
-    const videoDone=['V01','V02','V03'].some(c => statusFor(c).done) ? 1 : 0;
-    const extra=data.missions.filter(m=>m.code!=='H04'&&!m.code.startsWith('V') && statusFor(m.code).done).length;
+    const submitted = c => {const x=statusFor(c);return x.ok+x.pending>=x.need};
+    const mandatoryPhoto=submitted('H04') ? 1 : 0;
+    const videoDone=['V01','V02','V03'].some(submitted) ? 1 : 0;
+    const extra=data.missions.filter(m=>m.code!=='H04'&&!m.code.startsWith('V') && submitted(m.code)).length;
     return Math.min(6,mandatoryPhoto+videoDone+Math.min(4,extra));
   }
   function iconFor(m) { return m.code.startsWith('V')?'🎬':m.code.startsWith('H')?'📸':m.code.startsWith('M')?'🤝':'🏛️' }
