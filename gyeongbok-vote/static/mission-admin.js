@@ -98,5 +98,5 @@
     }
   });
   refresh();
-  setInterval(()=>{if(!document.querySelector('video:not([hidden])')?.paused&&!busy)refresh()},45000);
+  setInterval(()=>{if(!busy&&!Array.from(document.querySelectorAll('video')).some(v=>!v.paused&&!v.ended))refresh()},45000);
 })();
