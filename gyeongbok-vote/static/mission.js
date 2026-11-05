@@ -52,13 +52,14 @@
   }
   function iconFor(m) { return m.code.startsWith('V')?'🎬':m.code.startsWith('H')?'📸':m.code.startsWith('M')?'🤝':'🏛️' }
   function evidenceMarkup(row) {
-    const url=base+'/media/'+row.id;
+    const url=base+'/media/'+row.id+(row.is_test?'?test=1':'');
     const media=row.mime.startsWith('video/')?
       '<video controls playsinline preload="metadata" src="'+url+'"></video>':
       '<img loading="lazy" src="'+url+'" alt="제출된 증빙">';
-    const status=row.status==='approved'?'승인':row.status==='rejected'?'반려':'검수 대기';
+    const status=row.is_test?'🧪 테스트 파일 (점수·투표 미반영)':row.status==='approved'?'승인':row.status==='rejected'?'반려':'검수 대기';
     return '<div class="evidence'+(row.mime.startsWith('video/')?' video':'')+'">'+media+
-      '<small>'+escape(status)+' · '+escape(row.filename)+'</small></div>';
+      '<small>'+escape(status)+' · '+escape(row.filename)+'</small>'+
+      '<a class="view-original" href="'+url+'" target="_blank" rel="noopener">🔍 원본 크게 보기 ↗</a></div>';
   }
   function cardMarkup(m) {
     const stat=statusFor(m.code);
@@ -101,13 +102,18 @@
       missions.map(cardMarkup).join('')+
       '<div class="lead"><h2>자유 미션 9개 중 4개</h2><p>쉽고 재미있는 미션을 골라 조원들과 함께 수행하세요.</p></div>'+
       others.map(cardMarkup).join('');
-    $('#uploads-list').innerHTML=data.submissions.length?
-      data.submissions.map(e=>'<div class="upload-history">'+
-        (e.mime.startsWith('video/')?'<video controls playsinline preload="metadata" src="'+base+'/media/'+e.id+'"></video>':
-          '<img loading="lazy" alt="제출 사진" src="'+base+'/media/'+e.id+'">')+
-        '<div><b>'+escape(e.mission_code)+' · '+escape(data.missions.find(m=>m.code===e.mission_code)?.title||'미션')+'</b>'+
-        '<p>'+escape(e.filename)+'</p><small>'+(e.status==='approved'?'✓ 검수 완료':e.status==='rejected'?'반려 · 재제출 가능':'⏳ 검수 대기')+'</small></div></div>').join(''):
-      '<div class="empty">아직 제출된 작품이 없습니다.<br>미션 카드를 열고 사진·영상을 올려주세요.</div>';
+    const testHeading=testMode?'<div class="info-line test-note"><strong>🧪 관리자 테스트 제출 현황</strong><br>테스트 파일도 이곳에 표시합니다. 테스트는 실제 점수와 투표에 포함되지 않습니다.</div>':'';
+    $('#uploads-list').innerHTML=testHeading+(data.submissions.length?
+      data.submissions.map(e=>{
+        const url=base+'/media/'+e.id+(e.is_test?'?test=1':'');
+        const status=e.is_test?'🧪 테스트 · 점수·투표 미반영':e.status==='approved'?'✓ 검수 완료':e.status==='rejected'?'반려 · 재제출 가능':'⏳ 검수 대기';
+        return '<div class="upload-history">'+
+          (e.mime.startsWith('video/')?'<video controls playsinline preload="metadata" src="'+url+'"></video>':
+          '<a href="'+url+'" target="_blank" rel="noopener"><img loading="lazy" alt="제출 사진 크게 보기" src="'+url+'"></a>')+
+          '<div><b>'+escape(e.mission_code)+' · '+escape(data.missions.find(m=>m.code===e.mission_code)?.title||'미션')+'</b>'+
+          '<p>'+escape(e.filename)+'</p><small>'+escape(status)+'</small><br><a class="view-original" target="_blank" rel="noopener" href="'+url+'">🔍 파일 크게 보기 ↗</a></div></div>';
+      }).join(''):
+      '<div class="empty">아직 제출된 작품이 없습니다.<br>미션 카드를 열고 사진·영상을 올려주세요.</div>');
     if(testMode){
       if(!document.querySelector('#test-banner')){
         const p=document.createElement('div');p.id='test-banner';p.className='info-line';
@@ -119,7 +125,7 @@
   async function refresh() {
     if(busy)return;
     try {
-      const res=await fetch(base+'/state',{cache:'no-store'});
+      const res=await fetch(base+'/state'+(testMode?'?test=1':''),{cache:'no-store'});
       const j=await res.json();
       if(!res.ok)throw new Error(j.error||'미션 데이터를 불러올 수 없습니다.');
       data=j;render();
