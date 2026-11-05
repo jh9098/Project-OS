@@ -37,7 +37,8 @@
     document.querySelectorAll('.tabs button').forEach(el => el.classList.toggle('active', el.dataset.tab === id));
   }
   function statusFor(code) {
-    const items = (data.submissions || []).filter(x => x.mission_code === code);
+    const progressTests=Boolean(data.test_mode || testMode);
+    const items = (data.submissions || []).filter(x => x.mission_code === code && (progressTests ? x.is_test : !x.is_test));
     const ok = items.filter(x => x.status === 'approved').length;
     const pending = items.filter(x => x.status === 'pending').length;
     const need = thresholds[code] || 1;
@@ -73,7 +74,7 @@
       'image/jpeg,image/png,image/webp,image/heic,image/heif';
     const clue = m.code==='E10'?
       '<div id="e10-clue"><img class="clue-photo" loading="lazy" src="/static/e10-clue.jpg" alt="E10 사진 단서" onerror="this.parentElement.innerHTML=\'<p class=&quot;caption&quot;>사진 단서는 현장 운영진 안내를 확인해 주세요.</p>\'"></div>':'';
-    const statusHelp=isVideo?'동영상 1개씩, 파일당 35MB 이하 · 15~30초 가로 MP4 권장':
+    const statusHelp=isVideo?'동영상 원본 100MB 이하 · 서버에서 720p MP4 자동 압축 · 15~30초 촬영 권장':
       '사진 1~3장 선택 가능 · 파일당 6MB 이하 (자동 크기 최적화)';
     return '<article class="mission-card'+(mandatory?' mandatory':'')+'" data-mission="'+escape(m.code)+'">'+
       '<div class="mission-summary"><div class="mission-icon">'+iconFor(m)+'</div><div class="mission-title">'+
@@ -87,7 +88,7 @@
       '<div class="action-row"><label class="upload-label'+(!data.uploads_open?' disabled':'')+'">📤 '+(isVideo?'영상 올리기':'사진 올리기')+
       '<input type="file" data-upload="'+escape(m.code)+'" accept="'+mediaType+'" '+(isVideo?'':'multiple')+' '+(!data.uploads_open?'disabled':'')+'></label>'+
       '<button type="button" data-tab-jump="map">📍 지도 보기</button></div>'+
-      '<p class="caption">'+statusHelp+' · 제출 후 운영진이 검수합니다.</p>'+
+      '<p class="caption">'+statusHelp+(data.test_mode||testMode?' · 사전 테스트 제출이며 실제 점수에 반영되지 않습니다.':' · 제출 후 운영진이 검수합니다.')+'</p>'+
       (stat.items.length?'<div class="evidences">'+stat.items.map(evidenceMarkup).join('')+'</div>':'')+
       '</div></article>';
   }
@@ -102,7 +103,7 @@
       missions.map(cardMarkup).join('')+
       '<div class="lead"><h2>자유 미션 9개 중 4개</h2><p>쉽고 재미있는 미션을 골라 조원들과 함께 수행하세요.</p></div>'+
       others.map(cardMarkup).join('');
-    const testHeading=testMode?'<div class="info-line test-note"><strong>🧪 관리자 테스트 제출 현황</strong><br>테스트 파일도 이곳에 표시합니다. 테스트는 실제 점수와 투표에 포함되지 않습니다.</div>':'';
+    const testHeading=(data.test_mode||testMode)?'<div class="info-line test-note"><strong>🧪 '+(data.test_mode?'사전 테스트 기간':'관리자 테스트 제출 현황')+'</strong><br>연습 제출 파일도 표시합니다. 실제 점수와 투표에는 반영되지 않으며 행사 전 운영진이 정리합니다.</div>':'';
     $('#uploads-list').innerHTML=testHeading+(data.submissions.length?
       data.submissions.map(e=>{
         const url=base+'/media/'+e.id+(e.is_test?'?test=1':'');
@@ -114,13 +115,19 @@
           '<p>'+escape(e.filename)+'</p><small>'+escape(status)+'</small><br><a class="view-original" target="_blank" rel="noopener" href="'+url+'">🔍 파일 크게 보기 ↗</a></div></div>';
       }).join(''):
       '<div class="empty">아직 제출된 작품이 없습니다.<br>미션 카드를 열고 사진·영상을 올려주세요.</div>');
-    if(testMode){
-      if(!document.querySelector('#test-banner')){
-        const p=document.createElement('div');p.id='test-banner';p.className='info-line';
-        p.style.background='#fff0d9';p.innerHTML='<strong>운영진 업로드 테스트 모드</strong> · 여기서 올리는 파일은 투표와 실제 점수에 반영되지 않습니다.';
-        $('#missions').prepend(p);
-      }
+    const enabled=Boolean(data.test_mode||testMode);
+    const oldBanner=document.querySelector('#test-banner');
+    if(oldBanner)oldBanner.remove();
+    if(enabled){
+      const banner=document.createElement('div');
+      banner.id='test-banner';banner.className='info-line test-note';
+      banner.innerHTML=data.test_mode?
+        '<strong>🧪 지금은 사전 연습 기간입니다.</strong><br>사진·영상 업로드를 마음껏 시험해보세요. 모든 제출물은 테스트로 저장되며 행사 점수·투표에 반영되지 않습니다.':
+        '<strong>🧪 관리자 전용 테스트</strong><br>여기서 올리는 자료는 실제 점수와 투표에 반영되지 않습니다.';
+      $('#missions').prepend(banner);
     }
+    const label=$('#progress').nextElementSibling;
+    if(label)label.textContent=enabled?'연습 제출 진행률 (실제 점수와 별개)':'제출 진행률 (승인·채점 별도)';
   }
   async function refresh() {
     if(busy)return;
@@ -162,8 +169,8 @@
     try {
       for(const original of files) {
         const file=isVideo?original:await optimizePhoto(original);
-        const limit=isVideo?35*1024*1024:6*1024*1024;
-        if(file.size>limit){notify(original.name+' 파일이 너무 큽니다. '+(isVideo?'영상 35MB':'사진 6MB')+' 이하로 준비해주세요.');continue}
+        const limit=isVideo?100*1024*1024:6*1024*1024;
+        if(file.size>limit){notify(original.name+' 파일이 너무 큽니다. '+(isVideo?'영상 원본 100MB':'사진 6MB')+' 이하로 준비해주세요.');continue}
         const form=new FormData();
         form.append('mission_code',code);form.append('file',file,file.name);
         if(testMode)form.append('test','1');
@@ -171,8 +178,11 @@
         let result;try{result=await resp.json()}catch{throw new Error('파일 업로드 연결 오류입니다.')}
         if(!resp.ok||result.error)throw new Error(result.error||'파일 업로드 실패');
         succeeded++;
+        const reduction=result.compressed&&result.original_bytes>0?
+          Math.round((1-result.stored_bytes/result.original_bytes)*100):null;
+        if(isVideo&&result.compressed)notify('영상 변환 완료'+(reduction!==null?' · 용량 '+reduction+'% 감소':'')+' · '+(result.test?'🧪 테스트 파일 저장':'운영진 검수 대기'));
       }
-      notify(succeeded+'개 파일 제출 완료 · '+(testMode?'테스트 자료로 저장됨':'운영진 검수 대기'));
+      if(!isVideo||!succeeded)notify(succeeded+'개 파일 제출 완료 · '+((data.test_mode||testMode)?'🧪 테스트 자료로 저장됨':'운영진 검수 대기'));
     }catch(err){notify('제출 '+succeeded+'개 성공 · '+(err.message||'오류'))}
     finally {setBusy(false);await refresh();}
   }
