@@ -221,17 +221,23 @@ PAGE = """
 </div></section>
 <section id="result" class="box"><h2>종합 순위</h2><p class="muted">미션 70점 + 사진 10점 + 영상 20점</p><div id="result-body">운영진이 공개한 뒤 볼 수 있습니다.</div></section>
 <section id="admin" class="box"><div id="login"><h2>운영진 로그인</h2><p class="muted">참가자는 로그인할 필요가 없습니다.</p><input type="password" id="password" placeholder="관리자 비밀번호"><p><button class="primary full" onclick="login()">관리자 로그인</button></p></div>
-<div id="admin-body" style="display:none"><h2>행사 운영</h2><div id="dbstate" class="note"></div><p class="row"><button class="mini" onclick="setting('vote_open')">투표 시작 / 종료</button><button class="mini" onclick="setting('reveal')">결과 공개 / 비공개</button><button class="mini" onclick="logout()">로그아웃</button></p><p id="toggles"></p><h2>조별 작품 등록</h2><div id="admteams"></div>
+<div id="admin-body" style="display:none"><a href="/admin/mission" style="display:block;background:#dceee8;color:#234c62;padding:15px;text-align:center;border-radius:10px;font-weight:bold;margin-bottom:18px;text-decoration:none">🏯 조별 미션 · QR 발급 · 사진·영상 검수 관리 ↗</a><h2>행사 운영</h2><div id="dbstate" class="note"></div><p class="row"><button class="mini" onclick="setting('vote_open')">투표 시작 / 종료</button><button class="mini" onclick="setting('reveal')">결과 공개 / 비공개</button><button class="mini" onclick="logout()">로그아웃</button></p><p id="toggles"></p><h2>조별 작품 등록</h2><div id="admteams"></div>
 <h2>일회용 투표코드</h2><p class="note">참가자 1인당 1개씩 발급합니다. 코드는 최초 발급 화면에서만 확인할 수 있으니 저장하세요.</p><div class="row"><select id="codeteam"><option value="1">1조</option><option value="2">2조</option><option value="3">3조</option><option value="4">4조</option><option value="5">5조</option></select><input type="number" id="codecount" value="6" min="1" max="50" style="width:85px"><button class="mini" onclick="codes()">코드 발급</button></div><div id="codes"></div>
 </div></section>
 <footer class="foot">2026 HEALING DAY · PRIVATE EVENT VOTING</footer></div>
 <script src="/static/vote.js" defer></script></body></html>
 """
 
+# Secure QR team missions; the existing vote service remains unchanged.
+from mobile import mission_bp, init_missions
+app.register_blueprint(mission_bp)
+
 if __name__=='__main__':
     init()
+    init_missions()
     app.run(host='0.0.0.0',port=int(os.environ.get('PORT','10000')))
 else:
     # Gunicorn: fail startup when persistent PostgreSQL is not ready.
     init()
+    init_missions()
     print('EVENT_PERSISTENT_POSTGRES_READY: schema initialized', flush=True)
