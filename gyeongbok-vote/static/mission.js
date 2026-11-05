@@ -54,13 +54,15 @@
   function iconFor(m) { return m.code.startsWith('V')?'🎬':m.code.startsWith('H')?'📸':m.code.startsWith('M')?'🤝':'🏛️' }
   function evidenceMarkup(row) {
     const url=base+'/media/'+row.id+(row.is_test?'?test=1':'');
+    const downloadUrl=base+'/download/'+row.id+(row.is_test?'?test=1':'');
     const media=row.mime.startsWith('video/')?
       '<video controls playsinline preload="metadata" src="'+url+'"></video>':
       '<img loading="lazy" src="'+url+'" alt="제출된 증빙">';
     const status=row.is_test?'🧪 테스트 파일 (점수·투표 미반영)':row.status==='approved'?'승인':row.status==='rejected'?'반려':'검수 대기';
     return '<div class="evidence'+(row.mime.startsWith('video/')?' video':'')+'">'+media+
       '<small>'+escape(status)+' · '+escape(row.filename)+'</small>'+
-      '<a class="view-original" href="'+url+'" target="_blank" rel="noopener">🔍 원본 크게 보기 ↗</a></div>';
+      '<a class="view-original" href="'+url+'" target="_blank" rel="noopener">🔍 파일 크게 보기 ↗</a>'+
+      '<a class="download-file" href="'+downloadUrl+'">⬇ 개별 다운로드</a></div>';
   }
   function cardMarkup(m) {
     const stat=statusFor(m.code);
@@ -107,12 +109,15 @@
     $('#uploads-list').innerHTML=testHeading+(data.submissions.length?
       data.submissions.map(e=>{
         const url=base+'/media/'+e.id+(e.is_test?'?test=1':'');
+        const downloadUrl=base+'/download/'+e.id+(e.is_test?'?test=1':'');
         const status=e.is_test?'🧪 테스트 · 점수·투표 미반영':e.status==='approved'?'✓ 검수 완료':e.status==='rejected'?'반려 · 재제출 가능':'⏳ 검수 대기';
         return '<div class="upload-history">'+
           (e.mime.startsWith('video/')?'<video controls playsinline preload="metadata" src="'+url+'"></video>':
           '<a href="'+url+'" target="_blank" rel="noopener"><img loading="lazy" alt="제출 사진 크게 보기" src="'+url+'"></a>')+
           '<div><b>'+escape(e.mission_code)+' · '+escape(data.missions.find(m=>m.code===e.mission_code)?.title||'미션')+'</b>'+
-          '<p>'+escape(e.filename)+'</p><small>'+escape(status)+'</small><br><a class="view-original" target="_blank" rel="noopener" href="'+url+'">🔍 파일 크게 보기 ↗</a></div></div>';
+          '<p>'+escape(e.filename)+'</p><small>'+escape(status)+'</small><br>'+
+          '<a class="view-original" target="_blank" rel="noopener" href="'+url+'">🔍 크게 보기 ↗</a>'+
+          '<a class="download-file" href="'+downloadUrl+'">⬇ 다운로드</a></div></div>';
       }).join(''):
       '<div class="empty">아직 제출된 작품이 없습니다.<br>미션 카드를 열고 사진·영상을 올려주세요.</div>');
     const enabled=Boolean(data.test_mode||testMode);
