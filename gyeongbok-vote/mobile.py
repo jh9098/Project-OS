@@ -312,7 +312,7 @@ def single_qr():
         qr.make(fit=True)
         out=io.BytesIO();qr.make_image(fill_color="#172F45",back_color="white").save(out,"PNG")
         return Response(out.getvalue(),mimetype="image/png",
-          headers={"Content-Disposition":f'attachment; filename="gyeongbok-team-{team}.png"'})
+          headers={"Content-Disposition":("inline" if request.args.get("inline")=="1" else "attachment") + f'; filename="gyeongbok-team-{team}.png"'})
     finally:db.close()
 
 @mission_bp.get("/api/admin/mission/qr.zip")
