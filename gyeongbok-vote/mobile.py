@@ -35,7 +35,7 @@ PHOTO_MIMES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_MIMES = {"video/mp4", "video/webm", "video/quicktime"}
 MAX_PHOTO = 6 * 1024 * 1024
 MAX_VIDEO = 35 * 1024 * 1024
-from video_processor import MAX_SOURCE as MAX_VIDEO_INPUT, normalize_video, VideoProcessingError, VideoProcessingBusy
+MAX_VIDEO_INPUT = 35 * 1024 * 1024  # Direct upload, no synchronous transcoding
 MAX_PER_TEAM = 75 * 1024 * 1024
 MAX_FILES_PER_TEAM = 30
 
@@ -129,7 +129,7 @@ def mission_state(team, token):
             (team,), all=True)
         return jsonify(ok=True,team=team,uploads_open=bool(config["uploads_open"]),
             test_mode=global_test,admin_test_preview=bool(wants_admin_tests and session.get("admin")),
-            max_video_input_mb=100, max_video_saved_mb=35,missions=mission_content(team),
+            max_video_input_mb=35, max_video_saved_mb=35,missions=mission_content(team),
             submissions=[public_submission(x) for x in rows])
     finally:
         db.close()
@@ -178,20 +178,15 @@ def mission_upload(team, token):
 
     raw = f.read(incoming_limit + 1)
     if not 100 <= len(raw) <= incoming_limit or not valid_magic(raw,mime):
-        limit_text = "영상 원본 100MB" if is_video else "사진 6MB"
+        limit_text = "영상 원본 35MB" if is_video else "사진 6MB"
         return jsonify(error=f"파일 형식과 크기를 확인해주세요. {limit_text} 이하로 올릴 수 있습니다."), 413
 
     original_bytes = len(raw)
     safe_name = os.path.basename(f.filename or ("video" if is_video else "photo"))[:180]
     compressed = False
-    if is_video:
-        try:
-            raw, mime, safe_name, compressed, original_bytes = normalize_video(raw,mime,safe_name)
-        except VideoProcessingBusy as exc:
-            return jsonify(error=str(exc)), 429
-        except VideoProcessingError as exc:
-            return jsonify(error=str(exc)), 400
-
+    # Save uploaded video directly, as before the compression regression.
+    # No FFmpeg lock or long-running work: concurrent teams can submit.
+    # Large videos are intentionally handled via the event's KakaoTalk fallback.
     db = connect()
     try:
         if not token_ok(db,q,team,token):
@@ -476,18 +471,18 @@ MISSION_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><me
 <div id="notice" role="alert" hidden></div><main class="shell">
 <section class="hero"><small>GYEONGBOKGUNG CHALLENGE</small><h1>경복궁에서 만드는<br><em>우리 조의 한 장면</em></h1><p>11월 6일 (금) · 14:40–16:00 미션</p><div class="count"><b id="progress">0 / 6</b><span>제출 진행률 (승인·채점 별도)</span></div><div class="progress-track"><div id="bar"></div></div></section>
 <nav class="tabs" aria-label="미션 탐색"><button class="active" data-tab="missions">미션 13개</button><button data-tab="map">실제 지도</button><button data-tab="uploads">제출 현황</button><button data-tab="info">일정·안내</button></nav>
-<section id="missions" class="tab-panel"><div class="lead"><h2>필수 2개 + 자유 4개</h2><p>영화 포스터 1장, 영상 3종 중 1개는 필수! 나머지 4개는 자유 선택하세요. 사진·영상은 이 페이지에서 바로 제출할 수 있습니다.</p></div><div id="mission-list" class="mission-list"></div></section>
+<section id="missions" class="tab-panel"><div class="lead"><h2>필수 2개 + 자유 4개</h2><p>영화 포스터 1장, 영상 3종 중 1개는 필수! 나머지 4개는 자유 선택하세요. 사진은 이 페이지에서 직접 제출하세요. 영상은 조별 대표자가 카카오톡으로 운영진에게 보내는 방식을 추천하며, 35MB 이하 영상은 사이트에 직접 올릴 수도 있습니다.</p></div><div id="mission-list" class="mission-list"></div></section>
 <section id="map" class="tab-panel" hidden><div class="lead"><h2>지도로 장소 찾기</h2><p>실제 지도를 확대해 확인하세요. 궁 안에서는 GPS 오차가 있을 수 있습니다.</p></div><div class="map-buttons"><a href="{{official_map}}" target="_blank" rel="noopener">🏯 공식 궁궐 관람지도</a><a href="{{kakao_map}}" target="_blank" rel="noopener">📍 카카오맵 열기</a></div><iframe title="경복궁 실시간 지도" loading="lazy" src="{{osm_map}}"></iframe><p class="caption">지도 데이터 © OpenStreetMap 기여자 · 미션 장소는 실제 관람 가능 구역을 기준으로 확인해 주세요.</p><div class="map-places"><b>주요 위치 바로 찾기</b><a href="https://map.kakao.com/?q=%EA%B2%BD%EB%B3%B5%EA%B6%81%20%EA%B7%BC%EC%A0%95%EC%A0%84" target="_blank" rel="noopener">근정전</a><a href="https://map.kakao.com/?q=%EA%B2%BD%EB%B3%B5%EA%B6%81%20%EC%82%AC%EC%A0%95%EC%A0%84" target="_blank" rel="noopener">사정전</a><a href="https://map.kakao.com/?q=%EA%B2%BD%EB%B3%B5%EA%B6%81%20%EA%B2%BD%ED%9A%8C%EB%A3%A8" target="_blank" rel="noopener">경회루</a></div></section>
 <section id="uploads" class="tab-panel" hidden><div class="lead"><h2>제출된 사진·영상</h2><p>이 조에서 제출한 파일과 운영진 검수 현황입니다. 제출 후에도 이곳에서 확인할 수 있습니다.</p></div><div id="uploads-list"></div></section>
-<section id="info" class="tab-panel" hidden><div class="lead"><h2>운영 안내</h2></div><div class="info-card"><b>14:40 — 미션 시작</b><p>13개 중 필수 2개 + 자유 4개를 수행합니다.</p></div><div class="info-card"><b>16:00 — 미션 종료</b><p>사진·영상 파일을 정리해 등록하세요.</p></div><div class="info-card"><b>16:25 — 제출 마감</b><p>경복궁에서 별도 재집결 없이 세화미술관 방향으로 이동합니다.</p></div><div class="info-card"><b>16:30 — 세화미술관</b><p>예약된 관람 일정에 맞춰 도착합니다.</p></div><div class="info-card"><b>시상식 — 작품 모바일 투표</b><p>각 조의 승인된 영화 포스터 사진 1장과 영상 1개를 투표합니다.</p><a href="/" class="soft-link">투표 사이트 열기 ↗</a></div><div class="info-card"><b>종합 점수</b><p>미션 원점수 최대 120점을 70점으로 환산 + 사진 투표 10점 + 영상 투표 20점 = 100점</p><p>미션 완료 체크는 자동 점수가 아닙니다. 운영진의 증빙 검수와 최종 채점이 적용됩니다.</p></div></section>
+<section id="info" class="tab-panel" hidden><div class="lead"><h2>운영 안내</h2></div><div class="info-card"><b>14:40 — 미션 시작</b><p>13개 중 필수 2개 + 자유 4개를 수행합니다.</p></div><div class="info-card"><b>16:00 — 미션 종료</b><p>사진·영상 파일을 정리해 등록하세요.</p></div><div class="info-card"><b>16:25 — 제출 마감</b><p>경복궁에서 별도 재집결 없이 세화미술관 방향으로 이동합니다.</p></div><div class="info-card"><b>16:30 — 세화미술관</b><p>예약된 관람 일정에 맞춰 도착합니다.</p></div><div class="info-card"><b>시상식 — 작품 모바일 투표</b><p>각 조의 영화 포스터 사진 1장과 카카오톡으로 받은 영상 1개를 운영진이 투표 사이트에 등록해 투표합니다.</p><a href="/" class="soft-link">투표 사이트 열기 ↗</a></div><div class="info-card"><b>종합 점수</b><p>미션 원점수 최대 120점을 70점으로 환산 + 사진 투표 10점 + 영상 투표 20점 = 100점</p><p>미션 완료 체크는 자동 점수가 아닙니다. 운영진의 증빙 검수와 최종 채점이 적용됩니다.</p></div></section>
 </main><footer>宮 2026 경복궁 힐링데이 · 조별 전용 페이지</footer>
 <script src="/static/mission.js" defer></script></body></html>"""
 
 ADMIN_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#152e43"><title>경복궁 미션 운영 관리</title><link rel="stylesheet" href="/static/mission.css"></head>
-<body class="admin-body"><header class="top"><div class="logo">宮 <span>HEALING DAY · CONTROL</span></div><a href="/">투표 관리로 이동 ↗</a></header><main class="shell"><section class="hero"><small>ORGANIZER DASHBOARD</small><h1>미션 제출·QR 관리</h1><p>5개 조의 사진·영상을 검수하고 QR코드를 배포합니다.</p></section><div id="notice" role="alert" hidden></div>
+<body class="admin-body"><header class="top"><div class="logo">宮 <span>HEALING DAY · CONTROL</span></div><a href="/">투표 관리로 이동 ↗</a></header><main class="shell"><section class="hero"><small>ORGANIZER DASHBOARD</small><h1>미션 제출·QR 관리</h1><p>5개 조의 사진을 검수하고, 카카오톡으로 수신한 영상은 투표 관리에서 등록합니다.</p></section><div id="notice" role="alert" hidden></div>
 <section id="admin-login" class="admin-login"><h2>관리자 로그인</h2><p>기존 투표 사이트 관리자 비밀번호를 사용하세요.</p><input id="admin-password" type="password" placeholder="관리자 비밀번호"><button id="login-button">로그인</button></section>
 <section id="admin-panel" hidden><div class="test-mode-controls" id="test-mode-controls"><div class="test-mode-copy"><div class="test-mode-heading"><strong>🧪 사전 테스트 모드</strong><span id="test-mode-badge">확인 중</span></div><p id="test-mode-description">조별 QR로 업로드한 파일을 테스트로 분리합니다. 테스트 파일은 점수·투표에 반영되지 않습니다.</p></div><button id="toggle-test-mode">설정 불러오는 중</button></div><div class="admin-strip"><div><strong>참가자 업로드</strong><small id="upload-state"></small></div><button id="toggle-uploads">마감 / 재개</button><button id="clear-tests">테스트 파일만 일괄 삭제</button></div>
 <div class="panel-box"><h2>① 조별 QR코드 5개</h2><p>회사 쪽지에 조별 QR 이미지를 보내세요. 아래 파일은 회사 쪽지에 첨부할 수 있습니다.</p><a class="action-link" href="/api/admin/mission/qr.zip">⬇ 5개 조 QR 이미지 ZIP 다운로드</a><div id="qr-grid" class="qr-grid"></div><p class="caption">QR에 포함된 조별 링크는 길고 무작위로 생성된 주소입니다. 외부에 공유되지 않도록 주의하세요.</p></div>
-<div class="panel-box"><h2>② 실제 제출 확인 및 승인</h2><p>승인한 H04 영화 포스터·영상 미션만 기존 모바일 투표 화면에 대표 작품으로 노출됩니다.</p><div class="admin-filters"><button data-filter="pending" class="active">검수 대기</button><button data-filter="all">전체</button><button data-filter="test">테스트만</button></div><div id="submissions"></div></div>
+<div class="panel-box"><h2>② 실제 제출 확인 및 승인</h2><p>QR로 제출된 사진·영상은 여기서 검수합니다. 카카오톡으로 받은 영상은 상단 '투표 관리로 이동'에서 해당 조의 영상 업로드로 등록할 수 있습니다. QR로 받은 작품 중 승인한 H04 영화 포스터·영상 미션도 투표 화면에 반영됩니다.</p><div class="admin-filters"><button data-filter="pending" class="active">검수 대기</button><button data-filter="all">전체</button><button data-filter="test">테스트만</button></div><div id="submissions"></div></div>
 <div class="panel-box"><h2>③ 관리자 업로드 테스트</h2><p>사전 테스트 모드에서는 누구든 기존 조별 QR로 시험 제출합니다. 이 관리자 전용 링크는 실제 행사 모드에서도 별도 테스트에 사용할 수 있습니다.</p><div id="test-links"></div><p class="caption">테스트 전용 링크로 접속하면 파일이 '테스트'로 구분됩니다. 테스트 후 위의 삭제 기능으로 일괄 정리할 수 있습니다.</p></div>
 </section></main><dialog id="preview-modal" class="preview-modal" aria-label="제출 파일 확대 미리보기"><div class="preview-head"><strong id="preview-title">제출 파일 미리보기</strong><button id="preview-close" type="button">닫기 ✕</button></div><div id="preview-body" class="preview-body"></div><a id="preview-download" class="preview-download" target="_blank" rel="noopener">원본 파일 새 창에서 보기 ↗</a></dialog><footer>궁궐 미션 · 운영진 전용</footer><script src="/static/mission-admin.js" defer></script></body></html>"""
