@@ -96,7 +96,8 @@ def media(team,kind):
     try:
         row=query(c,f"SELECT {kind}_data AS data,{kind}_type AS type FROM teams WHERE team=?",(team,))
         if not row or row['data'] is None:return 'Not found',404
-        return Response(bytes(row['data']),mimetype=row['type'] or ('image/jpeg' if kind=='photo' else 'video/mp4'),headers={'Cache-Control':'public,max-age=60'})
+        from mobile import serve_media_bytes
+        return serve_media_bytes(row['data'],row['type'] or ('image/jpeg' if kind=='photo' else 'video/mp4'))
     finally:c.close()
 
 @app.post('/api/login')
