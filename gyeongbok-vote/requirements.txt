@@ -2,4 +2,3 @@ Flask==3.1.2
 gunicorn==23.0.0
 psycopg2-binary==2.9.11
 qrcode[pil]==8.2
-imageio-ffmpeg==0.6.0
