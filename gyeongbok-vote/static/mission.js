@@ -76,7 +76,7 @@
       'image/jpeg,image/png,image/webp,image/heic,image/heif';
     const clue = m.code==='E10'?
       '<div id="e10-clue"><img class="clue-photo" loading="lazy" src="/static/e10-clue.jpg" alt="E10 사진 단서" onerror="this.parentElement.innerHTML=\'<p class=&quot;caption&quot;>사진 단서는 현장 운영진 안내를 확인해 주세요.</p>\'"></div>':'';
-    const statusHelp=isVideo?'동영상 원본 100MB 이하 · 서버에서 720p MP4 자동 압축 · 15~30초 촬영 권장':
+    const statusHelp=isVideo?'영상은 카카오톡으로 운영진에게 전송하는 것을 권장합니다. 사이트 업로드는 35MB 이하만 가능하며 자동 압축하지 않습니다. MP4 권장.':
       '사진 1~3장 선택 가능 · 파일당 6MB 이하 (자동 크기 최적화)';
     return '<article class="mission-card'+(mandatory?' mandatory':'')+'" data-mission="'+escape(m.code)+'">'+
       '<div class="mission-summary"><div class="mission-icon">'+iconFor(m)+'</div><div class="mission-title">'+
@@ -87,7 +87,8 @@
       '<div class="info-line">📍 <strong>장소</strong> '+escape(m.location)+'</div>'+
       '<p>'+escape(m.description)+'</p>'+clue+
       '<div class="info-line">📎 <strong>제출</strong> '+escape(m.proof)+' '+(stat.need>1?'('+stat.ok+'/'+stat.need+'건 승인)':'')+'</div>'+
-      '<div class="action-row"><label class="upload-label'+(!data.uploads_open?' disabled':'')+'">📤 '+(isVideo?'영상 올리기':'사진 올리기')+
+      (isVideo?'<div class="info-line video-kakao-help"><strong>📲 영상은 카카오톡 제출 권장</strong><br>조별 대표가 운영진에게 15~30초 영상을 전송해주세요. 운영진이 투표용 영상으로 등록합니다. <br><small>35MB 이하 파일만 사이트로 직접 제출할 수 있습니다.</small></div>':'')+
+      '<div class="action-row"><label class="upload-label'+(!data.uploads_open?' disabled':'')+'">📤 '+(isVideo?'사이트에 직접 올리기 (선택)':'사진 올리기')+
       '<input type="file" data-upload="'+escape(m.code)+'" accept="'+mediaType+'" '+(isVideo?'':'multiple')+' '+(!data.uploads_open?'disabled':'')+'></label>'+
       '<button type="button" data-tab-jump="map">📍 지도 보기</button></div>'+
       '<p class="caption">'+statusHelp+(data.test_mode||testMode?' · 사전 테스트 제출이며 실제 점수에 반영되지 않습니다.':' · 제출 후 운영진이 검수합니다.')+'</p>'+
@@ -174,8 +175,8 @@
     try {
       for(const original of files) {
         const file=isVideo?original:await optimizePhoto(original);
-        const limit=isVideo?100*1024*1024:6*1024*1024;
-        if(file.size>limit){notify(original.name+' 파일이 너무 큽니다. '+(isVideo?'영상 원본 100MB':'사진 6MB')+' 이하로 준비해주세요.');continue}
+        const limit=isVideo?35*1024*1024:6*1024*1024;
+        if(file.size>limit){notify(original.name+' 파일이 너무 큽니다. '+(isVideo?'영상 35MB (큰 영상은 카카오톡으로 운영진에게 전달)':'사진 6MB')+' 이하로 준비해주세요.');continue}
         const form=new FormData();
         form.append('mission_code',code);form.append('file',file,file.name);
         if(testMode)form.append('test','1');
@@ -183,11 +184,8 @@
         let result;try{result=await resp.json()}catch{throw new Error('파일 업로드 연결 오류입니다.')}
         if(!resp.ok||result.error)throw new Error(result.error||'파일 업로드 실패');
         succeeded++;
-        const reduction=result.compressed&&result.original_bytes>0?
-          Math.round((1-result.stored_bytes/result.original_bytes)*100):null;
-        if(isVideo&&result.compressed)notify('영상 변환 완료'+(reduction!==null?' · 용량 '+reduction+'% 감소':'')+' · '+(result.test?'🧪 테스트 파일 저장':'운영진 검수 대기'));
       }
-      if(!isVideo||!succeeded)notify(succeeded+'개 파일 제출 완료 · '+((data.test_mode||testMode)?'🧪 테스트 자료로 저장됨':'운영진 검수 대기'));
+      notify(succeeded+'개 파일 제출 완료 · '+((data.test_mode||testMode)?'🧪 테스트 자료로 저장됨':'운영진 검수 대기'));
     }catch(err){notify('제출 '+succeeded+'개 성공 · '+(err.message||'오류'))}
     finally {setBusy(false);await refresh();}
   }
