@@ -33,23 +33,28 @@
     }).join('');
     $('#qr-grid').innerHTML=qrMarkup;
     $('#test-links').innerHTML=data.links.map(a=>'<a target="_blank" rel="noopener" href="'+escape(a.url)+'?test=1">'+a.team+'조 테스트 제출 ↗</a>').join('');
+    const testCount=data.submissions.filter(x=>x.is_test).length;
+    const testFilter=$('.admin-filters [data-filter="test"]');
+    if(testFilter)testFilter.textContent='테스트만 ('+testCount+')';
     let rows=data.submissions;
     if(filter==='pending')rows=rows.filter(x=>x.status==='pending'&&!x.is_test);
     if(filter==='test')rows=rows.filter(x=>x.is_test);
     $('#submissions').innerHTML=rows.length?rows.map(s=>{
       const url='/api/admin/mission/media/'+s.id;
-      const media=s.mime.startsWith('video/')?'<video controls playsinline preload="metadata" src="'+url+'"></video>':
+      const media=s.mime.startsWith('video/')?
+        '<span class="video-thumb" aria-hidden="true">🎬<small>영상 재생</small></span>':
         '<img loading="lazy" src="'+url+'" alt="제출 사진">';
       const status=s.is_test?'🧪 테스트':s.status==='approved'?'✓ 승인':s.status==='rejected'?'반려':'검수 대기';
       const buttons=s.is_test?'<button class="danger" data-action="delete" data-id="'+s.id+'">테스트 파일 삭제</button>':
         '<button class="approve" data-action="approved" data-id="'+s.id+'">승인</button>'+
         '<button class="reject" data-action="rejected" data-id="'+s.id+'">반려</button>'+
         '<button class="danger" data-action="delete" data-id="'+s.id+'">삭제</button>';
-      return '<article class="review-card"><div class="review-preview">'+media+'</div>'+
+      const previewButton='<button class="preview-button" data-preview="'+s.id+'">🔍 '+(s.mime.startsWith('video/')?'영상 크게 재생':'사진 크게 보기')+'</button>';
+      return '<article class="review-card"><div class="review-preview"><button class="preview-thumb" data-preview="'+s.id+'" aria-label="'+(s.mime.startsWith('video/')?'영상 재생':'사진 확대')+'">'+media+'</button></div>'+
         '<div class="review-info"><h3>'+s.team+'조 · '+escape(s.mission_code)+' <span class="tag">'+status+'</span></h3>'+
         '<p>'+escape(s.filename)+' · '+Math.round(s.size_bytes/1024)+'KB</p>'+
         '<p>'+escape(s.created_at.replace('T',' ').slice(0,19))+'</p>'+
-        '<div class="review-buttons">'+buttons+'</div></div></article>';
+        '<div class="review-buttons">'+previewButton+buttons+'</div></div></article>';
     }).join(''):'<div class="empty">현재 이 조건에 해당하는 제출 파일이 없습니다.</div>';
     document.querySelectorAll('.admin-filters button').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));
   }
@@ -85,7 +90,37 @@
     const button=e.target.closest('[data-filter]');if(!button)return;
     filter=button.dataset.filter;render();
   });
+  const previewDialog=$('#preview-modal');
+  function closePreview(){
+    if(previewDialog.open)previewDialog.close();
+    $('#preview-body').replaceChildren();
+  }
+  function openPreview(id) {
+    const item=data?.submissions.find(x=>Number(x.id)===Number(id));
+    if(!item){show('파일을 찾지 못했습니다. 새로고침 후 다시 시도해주세요.');return;}
+    const url='/api/admin/mission/media/'+item.id;
+    $('#preview-title').textContent=item.team+'조 · '+item.mission_code+' · '+(item.is_test?'테스트 파일':'제출 파일');
+    const body=$('#preview-body');
+    body.replaceChildren();
+    let media;
+    if(item.mime.startsWith('video/')){
+      media=document.createElement('video');
+      media.controls=true;media.playsInline=true;media.preload='metadata';
+    }else{
+      media=document.createElement('img');
+      media.alt=item.filename;
+    }
+    media.src=url;
+    body.appendChild(media);
+    $('#preview-download').href=url;
+    previewDialog.showModal();
+  }
+  $('#preview-close').addEventListener('click',closePreview);
+  previewDialog.addEventListener('click',e=>{if(e.target===previewDialog)closePreview();});
+  previewDialog.addEventListener('close',()=>$('#preview-body').replaceChildren());
   $('#submissions').addEventListener('click',e=>{
+    const previewButton=e.target.closest('[data-preview]');
+    if(previewButton){openPreview(Number(previewButton.dataset.preview));return;}
     const b=e.target.closest('[data-action]');if(!b)return;
     const id=Number(b.dataset.id),action=b.dataset.action;
     if(action==='delete'){
