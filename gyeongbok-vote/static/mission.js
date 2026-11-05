@@ -98,7 +98,7 @@
     $('#mission-list').innerHTML=
       '<div class="info-line" style="background:#fff1d5"><strong>★ 필수 미션</strong> H04 영화 포스터 + V01~V03 중 영상 하나를 제출하세요.</div>'+
       missions.map(cardMarkup).join('')+
-      '<div class="lead"><h2>자유 미션 10개 중 4개</h2><p>쉽고 재미있는 미션을 골라 조원들과 함께 수행하세요.</p></div>'+
+      '<div class="lead"><h2>자유 미션 9개 중 4개</h2><p>쉽고 재미있는 미션을 골라 조원들과 함께 수행하세요.</p></div>'+
       others.map(cardMarkup).join('');
     $('#uploads-list').innerHTML=data.submissions.length?
       data.submissions.map(e=>'<div class="upload-history">'+
