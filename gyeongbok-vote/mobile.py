@@ -260,6 +260,58 @@ def participant_media(team,token,file_id):
     finally:db.close()
 
 
+
+
+def downloadable_media(data, mime, filename, file_id):
+    """Return stored media bytes as an actual download, never as inline HTML."""
+    from flask import send_file
+    safe = re.sub(r"[\\/\x00-\x1f\x7f]", "_", str(filename or "").split("\\")[-1]).strip(" .")
+    if not safe:
+        safe = f"submission-{file_id}.mp4" if str(mime).startswith("video/") else f"submission-{file_id}.jpg"
+    response = send_file(io.BytesIO(bytes(data)), mimetype=mime,
+                         as_attachment=True, download_name=safe,
+                         conditional=False, max_age=0)
+    response.cache_control.no_store = True
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@mission_bp.get("/api/mission/<int:team>/<token>/download/<int:file_id>")
+def participant_download(team, token, file_id):
+    connect, q = dbtools()
+    db = connect()
+    try:
+        if not token_ok(db, q, team, token):
+            return "Forbidden", 403
+        cfg = q(db, "SELECT test_mode FROM mission_settings WHERE id=1")
+        include_tests = bool(cfg["test_mode"]) or (
+            request.args.get("test") == "1" and bool(session.get("admin")))
+        if request.args.get("test") == "1" and not include_tests:
+            return "Unauthorized", 401
+        condition = "" if include_tests else " AND is_test=FALSE"
+        row = q(db, "SELECT data,mime,filename FROM mission_submissions WHERE id=? AND team=?"
+                + condition, (file_id, team))
+        if not row:
+            return "Not Found", 404
+        return downloadable_media(row["data"], row["mime"], row["filename"], file_id)
+    finally:
+        db.close()
+
+
+@mission_bp.get("/api/admin/mission/download/<int:fid>")
+@admin_required
+def administrator_download(fid):
+    connect, q = dbtools()
+    db = connect()
+    try:
+        row = q(db, "SELECT data,mime,filename FROM mission_submissions WHERE id=?", (fid,))
+        if not row:
+            return "Not Found", 404
+        return downloadable_media(row["data"], row["mime"], row["filename"], fid)
+    finally:
+        db.close()
+
+
 @mission_bp.get("/admin/mission")
 def admin_mission_page():
     return Response(ADMIN_HTML,mimetype="text/html")
