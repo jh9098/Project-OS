@@ -114,11 +114,15 @@ def mission_state(team,token):
     db=connect()
     try:
         if not token_ok(db,q,team,token):return jsonify(error="조별 QR코드를 확인해주세요."),403
+        want_test=request.args.get("test")=="1"
+        if want_test and not session.get("admin"):
+            return jsonify(error="테스트 제출 현황은 관리자 로그인 후 확인할 수 있습니다."),401
         rec=q(db,"SELECT uploads_open FROM mission_settings WHERE id=1")
+        condition="" if want_test else " AND is_test=FALSE"
         rows=q(db,"""SELECT id,team,mission_code,filename,mime,size_bytes,status,is_test,created_at
-          FROM mission_submissions WHERE team=? AND is_test=FALSE ORDER BY created_at DESC""",(team,),all=True)
-        return jsonify(ok=True,team=team,uploads_open=bool(rec["uploads_open"]),missions=mission_content(team),
-          submissions=[public_submission(x) for x in rows])
+          FROM mission_submissions WHERE team=?"""+condition+" ORDER BY created_at DESC",(team,),all=True)
+        return jsonify(ok=True,team=team,uploads_open=bool(rec["uploads_open"]),test_mode=want_test,
+          missions=mission_content(team),submissions=[public_submission(x) for x in rows])
     finally:db.close()
 
 def valid_magic(data,mime):
@@ -146,7 +150,10 @@ def mission_upload(team,token):
     if not 100<=len(data)<=limit or not valid_magic(data,mime):
         return jsonify(error=f"파일 형식 또는 크기를 확인하세요. {'영상 35MB' if is_video else '사진 6MB'} 이하여야 합니다."),400
     safe_name=os.path.basename(f.filename or ("video" if is_video else "photo"))[:180]
-    requested_test=request.form.get("test")=="1" and bool(session.get("admin"))
+    wants_test=request.form.get("test")=="1"
+    if wants_test and not session.get("admin"):
+        return jsonify(error="테스트 업로드는 관리자 로그인 후 사용할 수 있습니다. 관리자 페이지에서 다시 열어주세요."),401
+    requested_test=wants_test
     connect,q=dbtools()
     db=connect()
     try:
@@ -194,7 +201,11 @@ def participant_media(team,token,file_id):
     db=connect()
     try:
         if not token_ok(db,q,team,token):return "Forbidden",403
-        row=q(db,"SELECT data,mime FROM mission_submissions WHERE id=? AND team=? AND is_test=FALSE",(file_id,team))
+        want_test=request.args.get("test")=="1"
+        if want_test and not session.get("admin"):
+            return "Unauthorized",401
+        condition="" if want_test else " AND is_test=FALSE"
+        row=q(db,"SELECT data,mime FROM mission_submissions WHERE id=? AND team=?"+condition,(file_id,team))
         if not row:return "Not Found",404
         return serve_media_bytes(row["data"],row["mime"])
     finally:db.close()
@@ -360,4 +371,4 @@ ADMIN_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta
 <div class="panel-box"><h2>① 조별 QR코드 5개</h2><p>회사 쪽지에 조별 QR 이미지를 보내세요. 아래 파일은 회사 쪽지에 첨부할 수 있습니다.</p><a class="action-link" href="/api/admin/mission/qr.zip">⬇ 5개 조 QR 이미지 ZIP 다운로드</a><div id="qr-grid" class="qr-grid"></div><p class="caption">QR에 포함된 조별 링크는 길고 무작위로 생성된 주소입니다. 외부에 공유되지 않도록 주의하세요.</p></div>
 <div class="panel-box"><h2>② 실제 제출 확인 및 승인</h2><p>승인한 H04 영화 포스터·영상 미션만 기존 모바일 투표 화면에 대표 작품으로 노출됩니다.</p><div class="admin-filters"><button data-filter="pending" class="active">검수 대기</button><button data-filter="all">전체</button><button data-filter="test">테스트만</button></div><div id="submissions"></div></div>
 <div class="panel-box"><h2>③ 관리자 업로드 테스트</h2><p>QR을 열어 직접 사진·영상을 올린 뒤 여기서 확인하세요. 테스트 파일은 투표에 노출되지 않습니다.</p><div id="test-links"></div><p class="caption">테스트 전용 링크로 접속하면 파일이 '테스트'로 구분됩니다. 테스트 후 위의 삭제 기능으로 일괄 정리할 수 있습니다.</p></div>
-</section></main><footer>궁궐 미션 · 운영진 전용</footer><script src="/static/mission-admin.js" defer></script></body></html>"""
+</section></main><dialog id="preview-modal" class="preview-modal" aria-label="제출 파일 확대 미리보기"><div class="preview-head"><strong id="preview-title">제출 파일 미리보기</strong><button id="preview-close" type="button">닫기 ✕</button></div><div id="preview-body" class="preview-body"></div><a id="preview-download" class="preview-download" target="_blank" rel="noopener">원본 파일 새 창에서 보기 ↗</a></dialog><footer>궁궐 미션 · 운영진 전용</footer><script src="/static/mission-admin.js" defer></script></body></html>"""
