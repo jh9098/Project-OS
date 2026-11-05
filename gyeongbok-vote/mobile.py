@@ -35,6 +35,7 @@ PHOTO_MIMES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_MIMES = {"video/mp4", "video/webm", "video/quicktime"}
 MAX_PHOTO = 6 * 1024 * 1024
 MAX_VIDEO = 35 * 1024 * 1024
+from video_processor import MAX_SOURCE as MAX_VIDEO_INPUT, normalize_video, VideoProcessingError, VideoProcessingBusy
 MAX_PER_TEAM = 75 * 1024 * 1024
 MAX_FILES_PER_TEAM = 30
 
@@ -58,7 +59,8 @@ def init_missions():
         q(db, "ALTER TABLE teams ADD COLUMN IF NOT EXISTS vote_video_submission_id BIGINT")
         q(db, """CREATE TABLE IF NOT EXISTS mission_settings(
           id INTEGER PRIMARY KEY, uploads_open BOOLEAN NOT NULL DEFAULT TRUE)""")
-        q(db,"INSERT INTO mission_settings(id) VALUES(1) ON CONFLICT DO NOTHING")
+        q(db,"ALTER TABLE mission_settings ADD COLUMN IF NOT EXISTS test_mode BOOLEAN NOT NULL DEFAULT TRUE")
+        q(db,"INSERT INTO mission_settings(id,test_mode) VALUES(1,TRUE) ON CONFLICT DO NOTHING")
         for team in range(1,6):
             q(db,"INSERT INTO mission_access(team,token) VALUES(?,?) ON CONFLICT (team) DO NOTHING",
               (team,secrets.token_urlsafe(24)))
@@ -109,21 +111,29 @@ def team_mission_page(team,token):
     return render_template_string(MISSION_HTML, team=team, token=token, official_map=OFFICIAL_MAP, osm_map=OSM_MAP, kakao_map=KAKAO_MAP)
 
 @mission_bp.get("/api/mission/<int:team>/<token>/state")
-def mission_state(team,token):
-    connect,q=dbtools()
-    db=connect()
+def mission_state(team, token):
+    connect, q = dbtools()
+    db = connect()
     try:
-        if not token_ok(db,q,team,token):return jsonify(error="조별 QR코드를 확인해주세요."),403
-        want_test=request.args.get("test")=="1"
-        if want_test and not session.get("admin"):
-            return jsonify(error="테스트 제출 현황은 관리자 로그인 후 확인할 수 있습니다."),401
-        rec=q(db,"SELECT uploads_open FROM mission_settings WHERE id=1")
-        condition="" if want_test else " AND is_test=FALSE"
-        rows=q(db,"""SELECT id,team,mission_code,filename,mime,size_bytes,status,is_test,created_at
-          FROM mission_submissions WHERE team=?"""+condition+" ORDER BY created_at DESC",(team,),all=True)
-        return jsonify(ok=True,team=team,uploads_open=bool(rec["uploads_open"]),test_mode=want_test,
-          missions=mission_content(team),submissions=[public_submission(x) for x in rows])
-    finally:db.close()
+        if not token_ok(db, q, team, token):
+            return jsonify(error="조별 QR코드를 확인해주세요."), 403
+        config = q(db, "SELECT uploads_open,test_mode FROM mission_settings WHERE id=1")
+        global_test = bool(config["test_mode"])
+        wants_admin_tests = request.args.get("test") == "1"
+        if wants_admin_tests and not session.get("admin") and not global_test:
+            return jsonify(error="운영진 테스트 내역은 관리자만 볼 수 있습니다."), 401
+        include_tests = global_test or (wants_admin_tests and bool(session.get("admin")))
+        constraint = "" if include_tests else " AND is_test=FALSE"
+        rows = q(db, """SELECT id,team,mission_code,filename,mime,size_bytes,status,is_test,created_at
+            FROM mission_submissions WHERE team=?""" + constraint + " ORDER BY created_at DESC",
+            (team,), all=True)
+        return jsonify(ok=True,team=team,uploads_open=bool(config["uploads_open"]),
+            test_mode=global_test,admin_test_preview=bool(wants_admin_tests and session.get("admin")),
+            max_video_input_mb=100, max_video_saved_mb=35,missions=mission_content(team),
+            submissions=[public_submission(x) for x in rows])
+    finally:
+        db.close()
+
 
 def valid_magic(data,mime):
     if mime=="image/jpeg":return data[:3]==b"\xff\xd8\xff"
@@ -135,43 +145,80 @@ def valid_magic(data,mime):
     return False
 
 @mission_bp.post("/api/mission/<int:team>/<token>/upload")
-def mission_upload(team,token):
-    code=(request.form.get("mission_code") or "").upper().strip()
-    if code not in BY_CODE:return jsonify(error="유효하지 않은 미션입니다."),400
-    f=request.files.get("file")
-    if not f:return jsonify(error="파일을 선택해주세요."),400
-    is_video=code.startswith("V")
-    allowed=VIDEO_MIMES if is_video else PHOTO_MIMES
-    limit=MAX_VIDEO if is_video else MAX_PHOTO
-    mime=(f.mimetype or "").lower().split(";")[0].strip()
+def mission_upload(team, token):
+    code = (request.form.get("mission_code") or "").upper().strip()
+    if code not in BY_CODE:
+        return jsonify(error="유효하지 않은 미션입니다."), 400
+    f = request.files.get("file")
+    if not f:
+        return jsonify(error="파일을 선택해주세요."), 400
+    is_video = code.startswith("V")
+    allowed = VIDEO_MIMES if is_video else PHOTO_MIMES
+    incoming_limit = MAX_VIDEO_INPUT if is_video else MAX_PHOTO
+    mime = (f.mimetype or "").lower().split(";")[0].strip()
     if mime not in allowed:
-        return jsonify(error="사진 JPG/PNG/WEBP, 영상 MP4/WEBM/MOV 형식만 지원합니다."),400
-    data=f.read(limit+1)
-    if not 100<=len(data)<=limit or not valid_magic(data,mime):
-        return jsonify(error=f"파일 형식 또는 크기를 확인하세요. {'영상 35MB' if is_video else '사진 6MB'} 이하여야 합니다."),400
-    safe_name=os.path.basename(f.filename or ("video" if is_video else "photo"))[:180]
-    wants_test=request.form.get("test")=="1"
-    if wants_test and not session.get("admin"):
-        return jsonify(error="테스트 업로드는 관리자 로그인 후 사용할 수 있습니다. 관리자 페이지에서 다시 열어주세요."),401
-    requested_test=wants_test
-    connect,q=dbtools()
-    db=connect()
+        return jsonify(error="사진 JPG/PNG/WEBP, 영상 MP4/WEBM/MOV만 지원합니다."), 400
+
+    # Avoid reading or processing media for an invalid team or closed intake.
+    connect, q = dbtools()
+    db = connect()
     try:
-        if not token_ok(db,q,team,token):return jsonify(error="조별 QR코드가 유효하지 않습니다."),403
-        setting=q(db,"SELECT uploads_open FROM mission_settings WHERE id=1")
-        if not setting["uploads_open"] and not requested_test:return jsonify(error="제출 시간이 종료됐습니다. 운영진에게 문의해주세요."),403
-        if not requested_test:
-            usage=q(db,"SELECT COALESCE(SUM(size_bytes),0) AS total,COUNT(*) AS cnt FROM mission_submissions WHERE team=? AND is_test=FALSE",(team,))
-            if usage["total"]+len(data)>MAX_PER_TEAM or usage["cnt"]>=MAX_FILES_PER_TEAM:
-                return jsonify(error="조별 업로드 저장 한도를 초과했습니다. 운영진에게 문의해주세요."),413
-        q(db,"""INSERT INTO mission_submissions(team,mission_code,mime,filename,data,size_bytes,is_test)
-          VALUES(?,?,?,?,?,?,?)""",(team,code,mime,safe_name,data,len(data),requested_test))
+        if not token_ok(db, q, team, token):
+            return jsonify(error="조별 QR코드가 유효하지 않습니다."), 403
+        setting = q(db,"SELECT uploads_open,test_mode FROM mission_settings WHERE id=1")
+        global_test = bool(setting["test_mode"])
+        explicit_test = request.form.get("test") == "1"
+        if explicit_test and not global_test and not session.get("admin"):
+            return jsonify(error="관리자 테스트 모드로 올리려면 관리자로 로그인해주세요."), 401
+        is_test = global_test or explicit_test
+        if not setting["uploads_open"] and not (is_test and session.get("admin")):
+            return jsonify(error="제출 시간이 종료됐습니다. 운영진에게 문의해주세요."), 403
+    finally:
+        db.close()
+
+    raw = f.read(incoming_limit + 1)
+    if not 100 <= len(raw) <= incoming_limit or not valid_magic(raw,mime):
+        limit_text = "영상 원본 100MB" if is_video else "사진 6MB"
+        return jsonify(error=f"파일 형식과 크기를 확인해주세요. {limit_text} 이하로 올릴 수 있습니다."), 413
+
+    original_bytes = len(raw)
+    safe_name = os.path.basename(f.filename or ("video" if is_video else "photo"))[:180]
+    compressed = False
+    if is_video:
+        try:
+            raw, mime, safe_name, compressed, original_bytes = normalize_video(raw,mime,safe_name)
+        except VideoProcessingBusy as exc:
+            return jsonify(error=str(exc)), 429
+        except VideoProcessingError as exc:
+            return jsonify(error=str(exc)), 400
+
+    db = connect()
+    try:
+        if not token_ok(db,q,team,token):
+            return jsonify(error="조별 QR코드가 유효하지 않습니다."), 403
+        # Per-team lock prevents concurrent uploads from bypassing storage quotas.
+        q(db,"SELECT team FROM teams WHERE team=? FOR UPDATE",(team,))
+        latest = q(db,"SELECT uploads_open,test_mode FROM mission_settings WHERE id=1")
+        is_test = is_test or bool(latest["test_mode"])
+        if not latest["uploads_open"] and not (is_test and session.get("admin")):
+            return jsonify(error="제출 시간이 종료됐습니다."), 403
+        usage = q(db,"""SELECT COALESCE(SUM(size_bytes),0) AS total,COUNT(*) AS cnt
+            FROM mission_submissions WHERE team=? AND is_test=?""",(team,is_test))
+        if usage["total"] + len(raw) > MAX_PER_TEAM or usage["cnt"] >= MAX_FILES_PER_TEAM:
+            return jsonify(error="조별 업로드 용량(75MB) 또는 파일 개수(30개) 한도를 초과했습니다. 운영진에게 문의해주세요."), 413
+        q(db, """INSERT INTO mission_submissions(team,mission_code,mime,filename,data,size_bytes,is_test)
+            VALUES(?,?,?,?,?,?,?)""",(team,code,mime,safe_name,raw,len(raw),is_test))
         db.commit()
-        return jsonify(ok=True,test=requested_test,message="테스트 제출 완료" if requested_test else "제출 완료 · 운영진 검수 대기")
-    except:
+        return jsonify(ok=True,test=is_test,compressed=compressed,
+            original_bytes=original_bytes,stored_bytes=len(raw),
+            message="🧪 사전 테스트 제출 완료 · 실제 점수와 투표에는 반영되지 않습니다."
+            if is_test else "제출 완료 · 운영진 검수 대기")
+    except Exception:
         db.rollback()
         raise
-    finally:db.close()
+    finally:
+        db.close()
+
 
 def serve_media_bytes(data,mime):
     data=bytes(data)
@@ -200,15 +247,18 @@ def participant_media(team,token,file_id):
     connect,q=dbtools()
     db=connect()
     try:
-        if not token_ok(db,q,team,token):return "Forbidden",403
-        want_test=request.args.get("test")=="1"
-        if want_test and not session.get("admin"):
+        if not token_ok(db,q,team,token):
+            return "Forbidden",403
+        cfg=q(db,"SELECT test_mode FROM mission_settings WHERE id=1")
+        include_tests=bool(cfg["test_mode"]) or (request.args.get("test")=="1" and bool(session.get("admin")))
+        if request.args.get("test")=="1" and not include_tests:
             return "Unauthorized",401
-        condition="" if want_test else " AND is_test=FALSE"
+        condition="" if include_tests else " AND is_test=FALSE"
         row=q(db,"SELECT data,mime FROM mission_submissions WHERE id=? AND team=?"+condition,(file_id,team))
         if not row:return "Not Found",404
         return serve_media_bytes(row["data"],row["mime"])
     finally:db.close()
+
 
 @mission_bp.get("/admin/mission")
 def admin_mission_page():
@@ -223,11 +273,28 @@ def admin_mission_state():
         links=q(db,"SELECT team,token FROM mission_access ORDER BY team",all=True)
         docs=q(db,"""SELECT id,team,mission_code,filename,mime,size_bytes,status,is_test,created_at
           FROM mission_submissions ORDER BY created_at DESC LIMIT 250""",all=True)
-        rec=q(db,"SELECT uploads_open FROM mission_settings WHERE id=1")
+        rec=q(db,"SELECT uploads_open,test_mode FROM mission_settings WHERE id=1")
         ts=q(db,"SELECT team,photo_data IS NOT NULL AS photo_ready,video_data IS NOT NULL AS video_ready,mission_score FROM teams ORDER BY team",all=True)
         return jsonify(ok=True,links=[{"team":r["team"],"url":get_team_link(r["team"],r["token"])} for r in links],
-          submissions=[public_submission(r) for r in docs],uploads_open=bool(rec["uploads_open"]),teams=ts)
+          submissions=[public_submission(r) for r in docs],uploads_open=bool(rec["uploads_open"]),
+          test_mode=bool(rec["test_mode"]),test_count=sum(1 for r in docs if r["is_test"]),teams=ts)
     finally:db.close()
+
+@mission_bp.post("/api/admin/mission/test-mode")
+@admin_required
+def toggle_pretest_mode():
+    data=request.get_json(silent=True) or {}
+    if type(data.get("enabled")) is not bool:
+        return jsonify(error="올바른 테스트 설정을 선택해주세요."),400
+    connect,q=dbtools()
+    db=connect()
+    try:
+        q(db,"UPDATE mission_settings SET test_mode=? WHERE id=1",(data["enabled"],))
+        db.commit()
+        return jsonify(ok=True,test_mode=data["enabled"],
+            message="사전 테스트 모드 실행 중" if data["enabled"] else "실제 행사 제출 모드로 전환됨")
+    finally:db.close()
+
 
 @mission_bp.post("/api/admin/mission/uploads")
 @admin_required
@@ -367,8 +434,8 @@ MISSION_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><me
 ADMIN_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#152e43"><title>경복궁 미션 운영 관리</title><link rel="stylesheet" href="/static/mission.css"></head>
 <body class="admin-body"><header class="top"><div class="logo">宮 <span>HEALING DAY · CONTROL</span></div><a href="/">투표 관리로 이동 ↗</a></header><main class="shell"><section class="hero"><small>ORGANIZER DASHBOARD</small><h1>미션 제출·QR 관리</h1><p>5개 조의 사진·영상을 검수하고 QR코드를 배포합니다.</p></section><div id="notice" role="alert" hidden></div>
 <section id="admin-login" class="admin-login"><h2>관리자 로그인</h2><p>기존 투표 사이트 관리자 비밀번호를 사용하세요.</p><input id="admin-password" type="password" placeholder="관리자 비밀번호"><button id="login-button">로그인</button></section>
-<section id="admin-panel" hidden><div class="admin-strip"><div><strong>참가자 업로드</strong><small id="upload-state"></small></div><button id="toggle-uploads">마감 / 재개</button><button id="clear-tests">테스트 파일만 삭제</button></div>
+<section id="admin-panel" hidden><div class="test-mode-controls" id="test-mode-controls"><div class="test-mode-copy"><div class="test-mode-heading"><strong>🧪 사전 테스트 모드</strong><span id="test-mode-badge">확인 중</span></div><p id="test-mode-description">조별 QR로 업로드한 파일을 테스트로 분리합니다. 테스트 파일은 점수·투표에 반영되지 않습니다.</p></div><button id="toggle-test-mode">설정 불러오는 중</button></div><div class="admin-strip"><div><strong>참가자 업로드</strong><small id="upload-state"></small></div><button id="toggle-uploads">마감 / 재개</button><button id="clear-tests">테스트 파일만 일괄 삭제</button></div>
 <div class="panel-box"><h2>① 조별 QR코드 5개</h2><p>회사 쪽지에 조별 QR 이미지를 보내세요. 아래 파일은 회사 쪽지에 첨부할 수 있습니다.</p><a class="action-link" href="/api/admin/mission/qr.zip">⬇ 5개 조 QR 이미지 ZIP 다운로드</a><div id="qr-grid" class="qr-grid"></div><p class="caption">QR에 포함된 조별 링크는 길고 무작위로 생성된 주소입니다. 외부에 공유되지 않도록 주의하세요.</p></div>
 <div class="panel-box"><h2>② 실제 제출 확인 및 승인</h2><p>승인한 H04 영화 포스터·영상 미션만 기존 모바일 투표 화면에 대표 작품으로 노출됩니다.</p><div class="admin-filters"><button data-filter="pending" class="active">검수 대기</button><button data-filter="all">전체</button><button data-filter="test">테스트만</button></div><div id="submissions"></div></div>
-<div class="panel-box"><h2>③ 관리자 업로드 테스트</h2><p>QR을 열어 직접 사진·영상을 올린 뒤 여기서 확인하세요. 테스트 파일은 투표에 노출되지 않습니다.</p><div id="test-links"></div><p class="caption">테스트 전용 링크로 접속하면 파일이 '테스트'로 구분됩니다. 테스트 후 위의 삭제 기능으로 일괄 정리할 수 있습니다.</p></div>
+<div class="panel-box"><h2>③ 관리자 업로드 테스트</h2><p>사전 테스트 모드에서는 누구든 기존 조별 QR로 시험 제출합니다. 이 관리자 전용 링크는 실제 행사 모드에서도 별도 테스트에 사용할 수 있습니다.</p><div id="test-links"></div><p class="caption">테스트 전용 링크로 접속하면 파일이 '테스트'로 구분됩니다. 테스트 후 위의 삭제 기능으로 일괄 정리할 수 있습니다.</p></div>
 </section></main><dialog id="preview-modal" class="preview-modal" aria-label="제출 파일 확대 미리보기"><div class="preview-head"><strong id="preview-title">제출 파일 미리보기</strong><button id="preview-close" type="button">닫기 ✕</button></div><div id="preview-body" class="preview-body"></div><a id="preview-download" class="preview-download" target="_blank" rel="noopener">원본 파일 새 창에서 보기 ↗</a></dialog><footer>궁궐 미션 · 운영진 전용</footer><script src="/static/mission-admin.js" defer></script></body></html>"""
