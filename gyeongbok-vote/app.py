@@ -394,7 +394,15 @@ if __name__=='__main__':
     init_missions()
     app.run(host='0.0.0.0',port=int(os.environ.get('PORT','10000')))
 else:
-    # Gunicorn: fail startup when persistent PostgreSQL is not ready.
-    init()
-    init_missions()
-    print('EVENT_PERSISTENT_POSTGRES_READY: schema initialized', flush=True)
+    # The existing production database is already initialized. During brief
+    # Render Postgres DNS/availability outages, keep the web process running
+    # so it can resume using that SAME database as soon as it returns.
+    # Never fall back to transient SQLite or create a replacement database.
+    try:
+        init()
+        init_missions()
+        print('EVENT_PERSISTENT_POSTGRES_READY: schema initialized', flush=True)
+    except psycopg2.OperationalError:
+        print('EVENT_POSTGRES_STARTUP_DEFERRED: existing database temporarily unavailable; '
+              'web process remains online and database-backed requests return 503 until recovery',
+              flush=True)
