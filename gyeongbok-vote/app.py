@@ -12,6 +12,30 @@ DATABASE_URL=os.environ.get("DATABASE_URL","")
 ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD","")
 IS_PG=bool(DATABASE_URL)
 
+# API clients must always receive JSON, even when PostgreSQL is temporarily
+# unavailable. Flask's default 500 page is HTML and causes JSON parse errors.
+import psycopg2
+
+@app.errorhandler(psycopg2.OperationalError)
+def database_connection_unavailable(err):
+    app.logger.warning("POSTGRES_CONNECTION_UNAVAILABLE: %s",type(err).__name__)
+    return jsonify(ok=False,code="DATABASE_UNAVAILABLE",
+        error="데이터베이스 연결이 일시적으로 불안정합니다. 기존 사진·영상과 투표 기록은 초기화되지 않았습니다. 잠시 후 새로고침해 다시 시도해주세요."),503
+
+@app.errorhandler(500)
+def api_internal_error(err):
+    if request.path.startswith('/api/'):
+        return jsonify(ok=False,code="SERVER_ERROR",
+            error="일시적인 서버 오류입니다. 제출·투표가 저장됐는지 확인하려면 새로고침해 주세요."),500
+    return err
+
+@app.errorhandler(404)
+def api_route_not_found(err):
+    if request.path.startswith('/api/'):
+        return jsonify(ok=False,code="API_NOT_FOUND",
+            error="요청한 기능의 주소를 찾지 못했습니다. 페이지를 새로고침해 주세요."),404
+    return err
+
 def connect():
     if not IS_PG:
         raise RuntimeError('DATABASE_URL is required for persistent event voting')
@@ -226,6 +250,11 @@ def vote():
             (key,voter_team,photo,video,absent))
         c.commit()
         return jsonify(ok=True,absentee=absent)
+    except psycopg2.OperationalError:
+        try:c.rollback()
+        except Exception:pass
+        return jsonify(ok=False,code="DATABASE_UNAVAILABLE",
+          error="데이터베이스 연결 장애로 투표 완료 여부를 확인하지 못했습니다. 잠시 후 새로고침하여 이미 투표했는지 확인하세요."),503
     except Exception:
         c.rollback()
         return jsonify(error='투표가 이미 제출되었거나 일시적으로 처리하지 못했습니다. 새로고침 후 확인해주세요.'),409
