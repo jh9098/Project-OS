@@ -31,6 +31,18 @@
       '기존 조별 QR에서 업로드한 모든 사진·영상은 자동으로 테스트 자료로 분리됩니다. 실제 점수·투표에 절대 반영되지 않습니다.':
       '이제 조별 QR에서 올리는 파일은 실제 행사 제출물입니다. 기존 테스트 파일은 아래 일괄 삭제 버튼으로 따로 정리하세요.';
     $('#toggle-uploads').textContent=data.uploads_open?'⏹ 제출 마감하기':'▶ 제출 재개하기';
+    const scores=data.scorecards||{};
+    $('#auto-score-grid').innerHTML=[1,2,3,4,5].map(team=>{
+      const x=scores[team]||{raw:0,normalized:0,completed:0,photo_done:false,video_done:false,selected_free:[],incomplete_three_photo:{}};
+      const free=(x.selected_free||[]).map(y=>y.code+'('+y.points+'점)').join(' · ')||'없음';
+      const partial=Object.entries(x.incomplete_three_photo||{}).map(([k,v])=>k+' '+v+'/3장').join(', ');
+      return '<div class="auto-score-card"><div class="auto-score-top"><strong>'+team+'조</strong><b>'+Number(x.normalized||0).toFixed(2)+' <small>/ 70점</small></b></div>'+
+        '<div class="auto-score-track"><span style="width:'+Math.min(100,Number(x.normalized||0)/70*100)+'%"></span></div>'+
+        '<div class="auto-score-meta">원점수 '+(x.raw||0)+'/120 · 완료 '+(x.completed||0)+'/6개</div>'+
+        '<p>필수 사진 '+(x.photo_done?'✓ 20점':'대기')+' · 필수 영상 '+(x.video_done?'✓ 30점':'대기')+'</p>'+
+        '<p>자유 미션: '+esc(free)+'</p>'+
+        (partial?'<p class="auto-score-pending">3장 증빙 추가 검수: '+esc(partial)+'</p>':'')+'</div>';
+    }).join('');
     const qrMarkup=data.links.map(a=>{
       const url='/api/admin/mission/qr.png?team='+a.team;
       return '<div class="qr-card"><strong>'+a.team+'조</strong>'+
