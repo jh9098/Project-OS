@@ -147,12 +147,23 @@
     const label=$('#progress').nextElementSibling;
     if(label)label.textContent=enabled?'연습 제출 진행률 (실제 점수와 별개)':'제출 진행률 (자동 채점 반영)';
   }
+  async function readJsonResponse(res, defaultError) {
+    const type=(res.headers.get('Content-Type')||'').toLowerCase();
+    if(!type.includes('application/json')) {
+      throw new Error(res.status>=500?
+        '데이터베이스 또는 서버 연결이 일시적으로 불안정합니다. 잠시 후 다시 확인해 주세요.':
+        '서버가 올바른 응답을 반환하지 않았습니다. 페이지를 새로고침해 주세요.');
+    }
+    let j;
+    try{j=await res.json()}catch{throw new Error('서버 데이터를 읽지 못했습니다. 새로고침해 주세요.');}
+    if(!res.ok||j.error)throw new Error(j.error||defaultError||'서버 요청 실패');
+    return j;
+  }
   async function refresh() {
     if(busy)return;
     try {
       const res=await fetch(base+'/state'+(testMode?'?test=1':''),{cache:'no-store'});
-      const j=await res.json();
-      if(!res.ok)throw new Error(j.error||'미션 데이터를 불러올 수 없습니다.');
+      const j=await readJsonResponse(res,'미션 데이터를 불러올 수 없습니다.');
       data=j;render();
     }catch(err){notify(err.message||'네트워크 연결을 확인해주세요.')}
   }
@@ -193,8 +204,7 @@
         form.append('mission_code',code);form.append('file',file,file.name);
         if(testMode)form.append('test','1');
         const resp=await fetch(base+'/upload',{method:'POST',body:form,credentials:'same-origin'});
-        let result;try{result=await resp.json()}catch{throw new Error('파일 업로드 연결 오류입니다.')}
-        if(!resp.ok||result.error)throw new Error(result.error||'파일 업로드 실패');
+        await readJsonResponse(resp,'파일 업로드 실패');
         succeeded++;
       }
       notify(succeeded+'개 파일 제출 완료 · '+((data.test_mode||testMode)?'🧪 테스트 자료로 저장됨':'운영진 검수 대기'));
@@ -216,9 +226,7 @@
         method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({})
       });
-      let result;
-      try{result=await res.json()}catch{throw Error('서버 응답을 확인해주세요.')}
-      if(!res.ok||result.error)throw Error(result.error||'파일 삭제에 실패했습니다.');
+      await readJsonResponse(res,'파일 삭제에 실패했습니다.');
       notify('파일 삭제 완료 · 제출 현황을 갱신했습니다.');
     }catch(err){
       notify('삭제 실패: '+(err.message||'네트워크 오류'));
