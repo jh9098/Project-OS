@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#102a40">
+<title>2026 힐링데이 | 사진·영상 투표</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;--navy:#102a40;--navy2:#1c4865;--teal:#258a8b;--gold:#b58d4d;--bg:#f4f7f9;--border:#dbe5ea;--muted:#647889}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--navy)}
+button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.48}
+a{color:var(--navy2)}.wrap{width:min(890px,calc(100% - 30px));margin:auto}
+.hero{background:linear-gradient(122deg,#0d253a,#214c66 80%);color:#fff;padding:26px 0 30px}
+.hero .top{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.brand{font-weight:850;letter-spacing:-.035em;font-size:17px}
+.tag{border:1px solid #7095a5aa;border-radius:30px;font-size:11px;padding:6px 10px;color:#d8ebf0}
+.hero h1{font-size:clamp(31px,6vw,47px);letter-spacing:-.075em;margin:32px 0 6px;line-height:1.14}
+.hero p{font-size:13px;color:#bed1da;line-height:1.8;margin:0}
+.tabs{display:flex;gap:8px;margin:-19px auto 26px;position:relative;z-index:1}
+.tabs button{flex:1;background:#fff;color:#4e6a7a;border:1px solid var(--border);padding:14px 9px;border-radius:12px;font-size:13px;font-weight:800;box-shadow:0 4px 20px #0b24300d}
+.tabs button.active{background:var(--navy2);color:#fff;border-color:var(--navy2)}
+.panel{background:#fff;border-radius:17px;padding:24px;margin:0 0 20px;border:1px solid var(--border);box-shadow:0 10px 35px #14283908}
+.panel h2{font-size:19px;letter-spacing:-.045em;margin:0 0 10px}
+.panel .hint{font-size:12px;line-height:1.8;color:var(--muted);margin:0 0 17px}
+.divider{height:1px;background:#e1e8ec;margin:23px 0}
+.status{border-radius:11px;padding:13px 16px;margin:0 0 17px;border:1px solid #cfe0e4;background:#ecf7f8;font-size:13px;line-height:1.7;color:#285970}
+.status.error{background:#fff2e7;color:#8e5c28;border-color:#efd8b9}
+.status.success{background:#eaf6ef;color:#286a4a;border-color:#c8e6d3}
+.team-picks{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:14px 0}
+.team-picks button{padding:14px 2px;border-radius:10px;border:1px solid #d3e0e6;background:#f4f8fa;font-weight:800;color:#3d667a}
+.team-picks button.active{background:var(--navy2);border-color:var(--navy2);color:#fff}
+.auto-team{background:#ebf5f1;color:#24694e;padding:13px;border:1px solid #cee2d7;border-radius:11px;font-size:13px;font-weight:800}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.choice{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;min-height:77px;padding:15px;border:1.5px solid #d5e3e9;border-radius:12px;background:linear-gradient(150deg,#fff,#f5f9fb);color:var(--navy);transition:border-color .12s,background .12s}
+.choice strong{font-size:16px}.choice small{color:#728999;font-size:11px;display:block;margin-top:4px}
+.choice .mark{font-size:20px;color:#9bb0b9}
+.choice.selected{background:#ecf6f5;border-color:#28888b}
+.choice.selected .mark{color:#238b88}
+.choice.disabled{background:#f1f3f4;color:#b0bcc2}
+.vote-button,.primary{background:var(--navy2);color:#fff;border:0;border-radius:11px;padding:15px 20px;font-size:14px;font-weight:850}
+.vote-button{display:block;width:100%;margin-top:23px;padding:18px}
+.secondary{background:#eaf1f4;color:var(--navy2);border:1px solid #c7d9e3;border-radius:10px;font-size:12px;font-weight:800;padding:11px 14px}
+.btns{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0}.btns button,.btns a{flex:1 1 160px;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.card{border:1px solid #dbe6ea;border-radius:11px;padding:15px;background:#f9fbfc;margin:10px 0}
+.card-top{display:flex;align-items:baseline;justify-content:space-between}.card-top strong{font-size:17px}.card-top b{color:var(--navy2);font-size:22px}
+.card .detail{color:#698190;font-size:12px;line-height:1.75;margin-top:5px}
+.track{margin:9px 0;height:7px;border-radius:50px;background:#e1e9ec;overflow:hidden}.track span{display:block;height:100%;background:#328a92;border-radius:30px}
+.flex{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}.kpi .tile{flex:1;min-width:100px;padding:13px;background:#f3f7f9;border-radius:10px;text-align:center}
+.kpi .tile b{display:block;font-size:23px;color:var(--navy2)}.kpi .tile span{display:block;font-size:11px;color:#768e9b}
+.note{font-size:12px;color:#6a7e8d;line-height:1.8}
+.warning{padding:12px 15px;background:#fff6e6;border-radius:10px;color:#805d2b;font-size:12px;line-height:1.8;border:1px solid #edd8b1}
+#admin-login input{padding:13px;width:100%;margin:9px 0 12px;border:1px solid #cddde4;border-radius:9px}
+.bottom{color:#8498a5;padding:22px 0 36px;font-size:10px;text-align:center}
+.hidden,[hidden]{display:none!important}
+@media(max-width:520px){.panel{padding:18px}.hero{padding-top:21px}.tabs button{font-size:12px;padding:13px 5px}.grid{gap:8px}.choice{min-height:68px;padding:12px 10px}.choice strong{font-size:14px}.team-picks{gap:5px}.team-picks button{padding:13px 1px;font-size:13px}.card-top b{font-size:20px}}
+</style>
+</head>
+<body data-team="{{team}}" data-absent="{{'1' if absent else '0'}}" data-token="{{token}}">
+<header class="hero"><div class="wrap">
+  <div class="top"><span class="brand">2026 소비자보호실 · 힐링데이</span><span class="tag">GYEONGBOK VOTING</span></div>
+  <h1>경복궁 <span style="color:#85cbd0">사진·영상 투표</span></h1>
+  <p>승인·업로드 없이 사진 1표와 영상 1표만 선택하세요.<br>기록된 미션 점수는 변경하지 않습니다.</p>
+</div></header>
+<main class="wrap">
+  <nav class="tabs" aria-label="화면 이동">
+    <button type="button" data-page="vote" class="active">🗳 투표하기</button>
+    <button type="button" data-page="results">🏆 결과</button>
+    <button type="button" data-page="admin">⚙ 운영진</button>
+  </nav>
+  <div id="notice" hidden class="status"></div>
+  <section id="page-vote">
+    <div id="vote-success" class="panel hidden">
+      <h2>✅ 투표가 접수되었습니다</h2>
+      <p class="hint">현재 브라우저에서는 투표가 완료됐습니다. 참여해 주셔서 감사합니다.</p>
+    </div>
+    <div id="vote-form">
+      <section class="panel">
+        <h2>01 · 투표자 소속 조</h2>
+        <div id="team-fixed" class="auto-team hidden"></div>
+        <div id="team-select">
+          <p class="hint">본인이 속한 조를 선택하세요. 자기 조에는 투표할 수 없습니다.</p>
+          <div id="team-picks" class="team-picks"></div>
+          <p class="note">미참석 직원은 <a href="/vote/absent">미참석자 전용 투표</a>를 이용하세요.</p>
+        </div>
+        <div id="absent-note" class="auto-team hidden">🏠 미참석자 전용 · 소속 조 선택 없이 투표 가능</div>
+      </section>
+      <section class="panel">
+        <h2>02 · 사진 투표 <span style="color:var(--teal);font-size:12px">1표</span></h2>
+        <p class="hint">행사에서 확인한 각 조의 사진 작품 중 한 조를 선택하세요.</p>
+        <div id="photo-options" class="grid"></div>
+        <div class="divider"></div>
+        <h2>03 · 영상 투표 <span style="color:var(--teal);font-size:12px">1표</span></h2>
+        <p class="hint">행사에서 확인한 각 조의 영상 작품 중 한 조를 선택하세요.</p>
+        <div id="video-options" class="grid"></div>
+        <button type="button" id="submit-vote" class="vote-button" disabled>사진·영상 각각 1표를 선택하세요</button>
+        <p class="note">별도 투표코드 없이 참여합니다. 서버에 접수된 후에는 같은 브라우저로 다시 투표할 수 없습니다.</p>
+      </section>
+    </div>
+  </section>
+  <section id="page-results" class="hidden">
+    <div class="panel">
+      <h2>🏆 종합 결과 · 100점 만점</h2>
+      <p class="hint">이미 확정된 미션 점수(70점)에 사진 투표(10점)와 영상 투표(20점)를 합산합니다.</p>
+      <div id="results-area"><p class="note">결과를 조회하고 있습니다.</p></div>
+    </div>
+  </section>
+  <section id="page-admin" class="hidden">
+    <div class="panel">
+      <h2>운영진 관리</h2>
+      <div id="admin-login">
+        <p class="hint">기존 운영진 비밀번호로 로그인하세요.</p>
+        <input id="admin-password" type="password" autocomplete="current-password" placeholder="운영진 비밀번호">
+        <button id="admin-login-btn" class="primary">로그인</button>
+      </div>
+      <div id="admin-panel" class="hidden">
+        <div id="admin-kpis" class="kpi"></div>
+        <div class="btns">
+          <button type="button" id="toggle-vote" class="secondary">투표 시작 / 종료</button>
+          <button type="button" id="toggle-reveal" class="secondary">결과 공개 / 비공개</button>
+          <button type="button" id="admin-logout" class="secondary">로그아웃</button>
+        </div>
+        <div class="warning">
+          <strong>⚠ 투표 임시저장소 안내</strong><br>
+          Render 무료 서버가 재시작하면 서버에 임시 저장된 투표가 사라질 수 있습니다.
+          아래 백업을 다운로드해 보관하세요. 이 운영진 브라우저에도 백업이 자동 보관됩니다.
+        </div>
+        <div class="btns">
+          <a class="primary" href="/api/vote-only/backup?download=1" download>⬇ 전체 투표 JSON 백업</a>
+          <button type="button" id="restore-browser" class="secondary">↺ 이 기기 백업 복원</button>
+        </div>
+        <div class="btns">
+          <label class="secondary" style="cursor:pointer;text-align:center;flex:1 1 180px">
+            📂 백업 JSON 파일 복원
+            <input id="restore-file" type="file" accept=".json,application/json" hidden>
+          </label>
+          <button type="button" id="merge-old" class="secondary">기존 DB 투표 가져오기</button>
+        </div>
+        <div id="backup-meta" class="note" style="margin-top:10px"></div>
+        <div class="divider"></div>
+        <h2>확정 미션 점수</h2>
+        <p class="hint">사진·영상 업로드 및 미션 승인을 중단했습니다. 아래 점수는 변경되지 않습니다.</p>
+        <div id="admin-scores"></div>
+      </div>
+    </div>
+  </section>
+  <p class="bottom">2026 HEALING DAY · VOTE ONLY MODE · 기존 미션 점수 고정</p>
+</main>
+<script src="/static/vote-only.js" defer></script>
+</body></html>
