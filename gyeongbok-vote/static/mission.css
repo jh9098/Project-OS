@@ -52,3 +52,16 @@
 .tabs a.vote-tab:focus-visible{outline:3px solid #a1d1ba;outline-offset:2px}
 .tabs a.vote-tab:hover{background:#164c39}
 @media(max-width:650px){.tabs{gap:4px}.tabs a.vote-tab,.tabs button{font-size:10.5px;padding:12px 1px;letter-spacing:-.06em}}
+
+
+/* Bulk photo/video backups for organizers and individual teams */
+.archive-toolbar{display:flex;align-items:center;gap:11px;margin:15px 0 14px;flex-wrap:wrap}
+.archive-toolbar label{font-size:13px;color:#36566c}
+#archive-team{max-width:230px;padding:10px 14px;border-radius:9px;border:1px solid #b7cdd7;background:#f8fbfc;color:#2b536e;font-size:13px;font-weight:750}
+.archive-links{display:flex;flex-wrap:wrap;gap:9px;margin:10px 0}
+.archive-links>a,.team-archive-link{display:inline-flex;align-items:center;justify-content:center;text-align:center;border-radius:9px;border:1px solid #aecbd9;background:#eaf4f7;color:#205471;padding:12px 15px;font-weight:850;font-size:12px;line-height:1.4;text-decoration:none}
+.archive-links>a:hover,.team-archive-link:hover{filter:brightness(.94)}
+.archive-links>a.archive-main,.team-archive-link{background:#214d63;color:#fff;border-color:#214d63}
+.archive-links>a.archive-test{background:#fff4de;border-color:#dfc38f;color:#806222}
+.team-archive-link{width:100%;margin:5px 0 6px;font-size:13px;padding:14px}
+@media(max-width:600px){.archive-links>a{flex:1 1 calc(50% - 9px)}.archive-links>.archive-main{flex-basis:100%}#archive-team{max-width:100%;flex:1}}
