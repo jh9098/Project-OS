@@ -3,6 +3,7 @@ const teamQRMatch=window.location.pathname.match(/^\/vote\/team\/([1-5])\/([A-Za
 const qrTeam=teamQRMatch?Number(teamQRMatch[1]):0;
 const qrToken=teamQRMatch?teamQRMatch[2]:null;
 let state=null,my=absentMode?6:qrTeam,photo=0,video=0,finished=false;
+let lastPhotoMarkup=null,lastVideoMarkup=null;
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(s){$('msg').innerHTML=s?'<div class="msg">'+esc(s)+'</div>':'';}
 async function readJsonResponse(r){
@@ -50,8 +51,10 @@ function render(){if(!state)return;
    $('return-mission').href='/mission/'+qrTeam+'/'+encodeURIComponent(qrToken);
  }
  $('myteams').innerHTML=[1,2,3,4,5].map(t=>'<button class="'+(my===t?'sel':'')+'" onclick="setmy('+t+')">'+t+'조</button>').join('');
- const list=type=>state.teams.filter(t=>t.team!==my).map(t=>'<div class="item '+((type==='photo'?photo:video)===t.team?'pick':'')+'"><div class="media">'+(t[type]?type==='photo'?'<img alt="'+t.team+'조 사진" src="/api/media/'+t.team+'/photo?v='+t.photo_title.length+'">':'<video controls playsinline preload="metadata" src="/api/media/'+t.team+'/video"></video>':'작품 준비 중')+'</div><button '+(!my||!t[type]?'disabled':'')+' onclick="pick(\''+type+'\','+t.team+')"><span>'+t.team+'조 <small>'+esc(t[type+'_title']||'경복궁 작품')+'</small></span><b>'+((type==='photo'?photo:video)===t.team?'✓':'○')+'</b></button></div>').join('');
- $('photos').innerHTML=list('photo');$('videos').innerHTML=list('video');
+ const list=type=>state.teams.filter(t=>t.team!==my).map(t=>'<div class="item '+((type==='photo'?photo:video)===t.team?'pick':'')+'"><div class="media">'+(t[type]?type==='photo'?'<img alt="'+t.team+'조 사진" src="/api/media/'+t.team+'/photo?v='+t.photo_title.length+'">':'<video controls playsinline preload="none" src="/api/media/'+t.team+'/video"></video>':'작품 준비 중')+'</div><button '+(!my||!t[type]?'disabled':'')+' onclick="pick(\''+type+'\','+t.team+')"><span>'+t.team+'조 <small>'+esc(t[type+'_title']||'경복궁 작품')+'</small></span><b>'+((type==='photo'?photo:video)===t.team?'✓':'○')+'</b></button></div>').join('');
+ const photoMarkup=list('photo'),videoMarkup=list('video');
+ if(photoMarkup!==lastPhotoMarkup){$('photos').innerHTML=photoMarkup;lastPhotoMarkup=photoMarkup;}
+ if(videoMarkup!==lastVideoMarkup){$('videos').innerHTML=videoMarkup;lastVideoMarkup=videoMarkup;}
  $('submit').disabled=!state.vote_open||!my||!photo||!video||finished;
  $('submit').textContent=state.vote_open?'사진·영상 투표 제출':'투표 시작 전입니다';
  $('thank').style.display=finished?'block':'none';$('votebody').style.display=finished?'none':'block';
