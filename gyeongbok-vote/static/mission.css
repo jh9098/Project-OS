@@ -80,3 +80,11 @@
 .auto-score-card p{font-size:11px;line-height:1.6;color:#526e7d;margin:5px 0}
 .auto-score-card .auto-score-pending{color:#a4772a;background:#fff4dd;padding:7px;border-radius:7px}
 @media(max-width:650px){.auto-score-grid{grid-template-columns:1fr}.auto-score-card{padding:14px}}
+
+
+/* Team-owned per-submission removal, excluding approved scoring/voting assets. */
+.delete-submission{display:inline-flex;align-items:center;justify-content:center;gap:4px;margin:8px 0 0 8px;border:1px solid #e1b8b5;background:#fff0ef;color:#9d3f3c;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:850;cursor:pointer}
+.delete-submission:hover{background:#fae0de}
+.delete-submission:focus-visible{outline:3px solid #dfb0aa;outline-offset:2px}
+.delete-locked{display:block;font-size:11px;line-height:1.5;color:#8a7070;margin-top:7px}
+@media(max-width:650px){.delete-submission{margin-left:4px}}
