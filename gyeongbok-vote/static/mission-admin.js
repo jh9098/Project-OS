@@ -4,19 +4,28 @@
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   let data=null,filter='all',busy=false,refreshTimer=0;
   function show(msg){const n=$('#notice');n.hidden=false;n.textContent=msg;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>n.hidden=true,6000)}
+  async function readJsonResponse(r) {
+    const type=(r.headers.get('Content-Type')||'').toLowerCase();
+    if(!type.includes('application/json')){
+      throw new Error(r.status>=500?
+        '서버 또는 데이터베이스 연결이 일시적으로 불안정합니다. 자료는 초기화되지 않았습니다. 연결이 복구되면 다시 조회해주세요.':
+        '서버 응답 형식이 올바르지 않습니다. 새로고침해주세요. (HTTP '+r.status+')');
+    }
+    let j;
+    try{j=await r.json()}catch{throw new Error('서버 데이터가 불완전합니다. 새로고침해주세요.');}
+    if(!r.ok||j.error)throw new Error(j.error||'서버 오류 (HTTP '+r.status+')');
+    return j;
+  }
   async function send(url,payload) {
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(payload)});
-    let j;try{j=await r.json()}catch{throw new Error('서버 통신 오류')};
-    if(!r.ok||j.error)throw new Error(j.error||'처리 오류');
-    return j;
+    return readJsonResponse(r);
   }
   async function refresh() {
     if(busy)return;
     try {
       const r=await fetch('/api/admin/mission/state',{cache:'no-store'});
       if(r.status===401){$('#admin-login').hidden=false;$('#admin-panel').hidden=true;return;}
-      const j=await r.json();
-      if(!r.ok)throw new Error(j.error||'서버 오류');
+      const j=await readJsonResponse(r);
       data=j;$('#admin-login').hidden=true;$('#admin-panel').hidden=false;render();
     }catch(e){show(e.message);}
   }
