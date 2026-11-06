@@ -90,7 +90,7 @@ VOTER_DEVICE_PATTERN=re.compile(r"^[A-Za-z0-9_-]{30,90}$")
 
 @app.before_request
 def prepare_voter_device():
-    if request.path not in ('/', '/vote/absent', '/api/state', '/api/vote'):
+    if request.path not in ('/', '/vote/absent', '/api/state', '/api/vote') and not request.path.startswith('/vote/team/'):
         return
     raw=request.cookies.get(VOTER_COOKIE,'')
     if VOTER_DEVICE_PATTERN.fullmatch(raw):
@@ -174,10 +174,17 @@ def vote():
         return jsonify(error='사진과 영상에 각각 한 표씩 선택하세요.'),400
     if (absent and voter_team!=0) or (not absent and voter_team not in range(1,6)):
         return jsonify(error='참석자는 소속 조를 선택해주세요. 미참석자는 미참석자용 QR로 접속해주세요.'),400
-    if not absent and voter_team in (photo,video):
-        return jsonify(error='자기 조에는 투표할 수 없습니다.'),400
     c=connect()
     try:
+        qr_token=d.get('team_token')
+        if qr_token is not None:
+            if absent or not isinstance(qr_token,str) or len(qr_token)>100:
+                return jsonify(error='조별 QR 투표 정보가 올바르지 않습니다.'),403
+            from mobile import token_ok
+            if not token_ok(c,query,voter_team,qr_token):
+                return jsonify(error='본인 조 QR 접속 정보가 유효하지 않습니다.'),403
+        if not absent and voter_team in (photo,video):
+            return jsonify(error='자기 조에는 투표할 수 없습니다.'),400
         setting=query(c,"SELECT vote_open FROM settings WHERE id=1")
         if not setting['vote_open']:
             return jsonify(error='아직 투표가 시작되지 않았습니다.'),403
@@ -281,6 +288,17 @@ def home():
 def absent_vote_home():
     return render_template_string(PAGE)
 
+@app.get('/vote/team/<int:team>/<token>')
+def team_vote_home(team,token):
+    from mobile import token_ok
+    c=connect()
+    try:
+        if not token_ok(c,query,team,token):
+            return '유효하지 않은 조별 QR입니다. 배포받은 미션 QR로 다시 접속해 주세요.',403
+    finally:
+        c.close()
+    return render_template_string(PAGE)
+
 PAGE = """
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>경복궁 힐링데이 투표</title><style>
 :root{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#172e43;background:#eef2f4}*{box-sizing:border-box}body{margin:0}.wrap{max-width:920px;margin:auto;padding:0 19px}header{display:flex;align-items:center;justify-content:space-between;padding:21px 0;border-bottom:1px solid #c9d8df;gap:8px}header strong{font-size:17px}nav{display:flex;gap:5px}nav button{border:0;background:transparent;padding:10px;color:#617889;border-radius:9px}nav button.on{background:#21485d;color:white}h1{font-size:clamp(35px,7vw,60px);letter-spacing:-.06em;line-height:1.18;margin:17px 0}h1 span{color:#42748b}.intro{padding:37px 0}.intro p{color:#768998;line-height:1.7}.tag{font-size:11px;color:#916d45;letter-spacing:.16em;font-weight:bold}.box{background:white;border:1px solid #d6e0e5;border-radius:17px;padding:26px;margin-bottom:35px;box-shadow:0 10px 45px #0e30450a}h2{font-size:21px;letter-spacing:-.04em}small,.muted{color:#8494a0}.divider{border-top:1px solid #e0e8ec;margin:25px 0}.teams{display:flex;gap:9px}.teams button{flex:1;padding:15px 0;border:1px solid #d7e0e5;border-radius:10px;background:#f6f9fa;color:#3a6073;font-weight:800}.teams button.sel{background:#21485d;color:white}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.item{border:2px solid #dce5e9;border-radius:12px;overflow:hidden;background:white}.item.pick{border-color:#32738b}.media{height:167px;background:#e9eff2;display:flex;align-items:center;justify-content:center;color:#94a6b1;font-size:14px}.media img,.media video{height:100%;width:100%;object-fit:contain;background:#102433}.item button{width:100%;padding:13px;border:0;background:white;text-align:left;font:inherit;font-weight:bold;color:#254b62;display:flex;justify-content:space-between;gap:8px}.item button:disabled{opacity:.5}.item small{display:block;font-weight:400;margin-top:5px;font-size:11px}.primary{padding:15px 24px;background:#214c63;color:white;border:0;border-radius:11px;font-size:15px;font-weight:bold;cursor:pointer}.primary:disabled{opacity:.4;cursor:default}.full{width:100%}input,select{border:1px solid #cddbe3;padding:13px;border-radius:9px;font-size:15px;max-width:100%;background:#f9fbfc;color:#234359}input{width:100%}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.note{font-size:12px;color:#748a99;line-height:1.7}.ok{padding:25px;text-align:center;font-size:21px;font-weight:bold;color:#276f60}.msg{background:#fff0dc;border:1px solid #ead5b0;color:#805832;padding:14px;border-radius:11px;margin-bottom:16px}.adminteam{border:1px solid #dbe5e9;padding:18px;border-radius:12px;margin:12px 0}.adminteam label{display:block;font-size:12px;color:#647d8b;margin:10px 0 5px}.adminteam input{margin-bottom:8px}.mini{border:1px solid #bfd0d9;border-radius:9px;background:#eaf2f5;color:#2d5e75;padding:11px;font-size:12px;font-weight:bold;cursor:pointer}.rank{display:flex;align-items:center;padding:16px;border-bottom:1px solid #dde7eb;gap:12px}.rank>strong{min-width:45px;font-size:22px;color:#457489}.rank span{flex:1}.rank b{font-size:22px}.badge{background:#e5f1ed;color:#32816d;border-radius:30px;padding:8px 12px;font-size:12px}.foot{padding:25px 0;color:#8294a0;font-size:11px;border-top:1px solid #d5e1e5}button{cursor:pointer}button:disabled{cursor:default}#result,#admin{display:none}@media(min-width:720px){.media{height:235px}}@media(max-width:430px){.box{padding:19px}.teams button{padding:13px 0}.media{height:130px}nav button{font-size:12px;padding:8px}header strong{font-size:14px}.row>*{min-width:0}} 
@@ -288,6 +306,7 @@ PAGE = """
 <div id="msg"></div>
 <section id="vote" class="box"><div id="thank" style="display:none" class="ok">✓ 투표가 완료되었습니다!<p class="note">소중한 한 표 감사합니다.</p></div><div id="votebody">
 <div id="absent-banner" style="display:none;background:#eaf3f7;border:1px solid #b9d3e2;padding:17px;border-radius:12px;margin:0 0 18px"><strong style="color:#24536b">🏠 미참석자 전용 투표</strong><p class="note">행사에 참석하지 않은 직원도 사진 1표와 영상 1표를 투표할 수 있습니다. 소속 조 선택은 필요하지 않습니다.</p></div>
+<div id="auto-team-banner" style="display:none;background:#e8f3ed;border:1px solid #afcfc1;padding:17px;border-radius:12px;margin:0 0 18px"><strong style="color:#24614b" id="auto-team-name">조별 QR 자동 인증</strong><p class="note">내 조는 자동으로 선택되었습니다. 내 조의 사진·영상에는 투표할 수 없습니다.</p><a id="return-mission" href="/" style="font-size:12px;font-weight:700;color:#24614b">← 우리 조 미션으로 돌아가기</a></div>
 <div id="team-panel"><h2>01. 나의 조 선택</h2><p class="muted">자기 조에는 투표할 수 없습니다. 미참석자는 <a href="/vote/absent">미참석자 투표</a>로 이동하세요.</p><div class="teams" id="myteams"></div><div class="divider"></div></div>
 <h2>02. 베스트 포토</h2><p class="muted">사진 한 장을 선택하세요.</p><div class="grid" id="photos"></div><div class="divider"></div>
 <h2>03. 베스트 영상</h2><p class="muted">영상을 보고 한 개를 선택하세요.</p><div class="grid" id="videos"></div><div class="divider"></div>
