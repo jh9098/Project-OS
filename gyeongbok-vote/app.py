@@ -116,6 +116,17 @@ def state():
     try:
         s=query(c,"SELECT vote_open,reveal FROM settings WHERE id=1")
         ts=query(c,"SELECT team,photo_title,video_title,mission_score,photo_data IS NOT NULL AS photo,video_data IS NOT NULL AS video FROM teams ORDER BY team",all=True)
+        # Published vote entries are automatically selected from real submissions,
+        # even when an organizer never clicks Approve. Keep curated manual
+        # photo/video uploads as preferred voting representatives.
+        evidence=query(c,"""SELECT team,mission_code,mime FROM mission_submissions
+            WHERE is_test=FALSE AND status<>'rejected'
+              AND (mission_code='H04' OR mission_code IN ('V01','V02','V03'))""",all=True)
+        photos={int(x["team"]) for x in evidence if x["mission_code"]=="H04" and str(x["mime"]).startswith("image/")}
+        videos={int(x["team"]) for x in evidence if x["mission_code"] in ("V01","V02","V03") and str(x["mime"]).startswith("video/")}
+        for t in ts:
+            t["photo"]=bool(t["photo"] or int(t["team"]) in photos)
+            t["video"]=bool(t["video"] or int(t["team"]) in videos)
         from scorecard import calculate_mission_scores
         auto_scores=calculate_mission_scores(c,query,ts)
         for t in ts:
@@ -149,7 +160,15 @@ def media(team,kind):
     c=connect()
     try:
         row=query(c,f"SELECT {kind}_data AS data,{kind}_type AS type FROM teams WHERE team=?",(team,))
-        if not row or row['data'] is None:return 'Not found',404
+        if not row or row['data'] is None:
+            # Fall back to newest actual upload, without an approval gate.
+            # Pull only the selected media bytes (not all team submissions).
+            code_clause="mission_code='H04'" if kind=='photo' else "mission_code IN ('V01','V02','V03')"
+            mime_clause="mime LIKE 'image/%'" if kind=='photo' else "mime LIKE 'video/%'"
+            row=query(c,"SELECT data,mime AS type FROM mission_submissions WHERE team=? "
+                        "AND is_test=FALSE AND status<>'rejected' AND "+code_clause+" AND "+mime_clause+
+                        " ORDER BY id DESC LIMIT 1",(team,))
+            if not row or row['data'] is None:return 'Not found',404
         from mobile import serve_media_bytes
         return serve_media_bytes(row['data'],row['type'] or ('image/jpeg' if kind=='photo' else 'video/mp4'))
     finally:c.close()
