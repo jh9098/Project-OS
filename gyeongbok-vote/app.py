@@ -47,19 +47,31 @@ def init():
             query(c,"CREATE TABLE IF NOT EXISTS teams (team INTEGER PRIMARY KEY, photo_title TEXT DEFAULT '', video_title TEXT DEFAULT '', photo_data BYTEA, photo_type TEXT, video_data BYTEA, video_type TEXT, mission_score REAL DEFAULT 0)")
             query(c,"CREATE TABLE IF NOT EXISTS codes (code_hash TEXT PRIMARY KEY, team INTEGER NOT NULL, used BOOLEAN DEFAULT FALSE)")
             query(c,"CREATE TABLE IF NOT EXISTS votes (code_hash TEXT PRIMARY KEY, voter_team INTEGER NOT NULL, photo_team INTEGER NOT NULL, video_team INTEGER NOT NULL)")
-            query(c,"CREATE TABLE IF NOT EXISTS public_votes (device_hash TEXT PRIMARY KEY, voter_team INTEGER NOT NULL, photo_team INTEGER NOT NULL, video_team INTEGER NOT NULL, absentee INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
             query(c,"CREATE TABLE IF NOT EXISTS public_votes (device_hash TEXT PRIMARY KEY, voter_team INTEGER NOT NULL, photo_team INTEGER NOT NULL, video_team INTEGER NOT NULL, absentee BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
+            # Repair initial anonymous table if a prior partial deploy created INTEGER absentee.
+            dtype=query(c,"SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='public_votes' AND column_name='absentee'")
+            if dtype and dtype["data_type"] in ("integer","smallint","bigint"):
+                query(c,"ALTER TABLE public_votes ALTER COLUMN absentee DROP DEFAULT")
+                query(c,"ALTER TABLE public_votes ALTER COLUMN absentee TYPE BOOLEAN USING (absentee <> 0)")
+                query(c,"ALTER TABLE public_votes ALTER COLUMN absentee SET DEFAULT FALSE")
             query(c,"INSERT INTO settings(id) VALUES(1) ON CONFLICT DO NOTHING")
-            for t in range(1,6):query(c,"INSERT INTO teams(team) VALUES(?) ON CONFLICT DO NOTHING",(t,))
+            for t in range(1,6):
+                query(c,"INSERT INTO teams(team) VALUES(?) ON CONFLICT DO NOTHING",(t,))
         else:
             query(c,"CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, vote_open INTEGER DEFAULT 0, reveal INTEGER DEFAULT 0)")
             query(c,"CREATE TABLE IF NOT EXISTS teams (team INTEGER PRIMARY KEY, photo_title TEXT DEFAULT '', video_title TEXT DEFAULT '', photo_data BLOB, photo_type TEXT, video_data BLOB, video_type TEXT, mission_score REAL DEFAULT 0)")
             query(c,"CREATE TABLE IF NOT EXISTS codes (code_hash TEXT PRIMARY KEY, team INTEGER NOT NULL, used INTEGER DEFAULT 0)")
             query(c,"CREATE TABLE IF NOT EXISTS votes (code_hash TEXT PRIMARY KEY, voter_team INTEGER NOT NULL, photo_team INTEGER NOT NULL, video_team INTEGER NOT NULL)")
+            query(c,"CREATE TABLE IF NOT EXISTS public_votes (device_hash TEXT PRIMARY KEY, voter_team INTEGER NOT NULL, photo_team INTEGER NOT NULL, video_team INTEGER NOT NULL, absentee INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
             query(c,"INSERT OR IGNORE INTO settings(id) VALUES(1)")
-            for t in range(1,6):query(c,"INSERT OR IGNORE INTO teams(team) VALUES(?)",(t,))
+            for t in range(1,6):
+                query(c,"INSERT OR IGNORE INTO teams(team) VALUES(?)",(t,))
         c.commit()
-    finally:c.close()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
 
 def h(s):return hashlib.sha256(s.encode()).hexdigest()
 def admin_only(fn):
