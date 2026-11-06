@@ -5,9 +5,40 @@ const qrToken=teamQRMatch?teamQRMatch[2]:null;
 let state=null,my=absentMode?6:qrTeam,photo=0,video=0,finished=false;
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(s){$('msg').innerHTML=s?'<div class="msg">'+esc(s)+'</div>':'';}
-async function api(path,data,files=false){const r=await fetch(path,{method:'POST',headers:files?{}:{'Content-Type':'application/json'},body:files?data:JSON.stringify(data),credentials:'same-origin'});let j;try{j=await r.json()}catch{throw Error('서버 응답을 확인해주세요.')}if(!r.ok||j.error)throw Error(j.error||'처리 오류');return j;}
+async function readJsonResponse(r){
+  const contentType=(r.headers.get('Content-Type')||'').toLowerCase();
+  if(!contentType.includes('application/json')){
+    throw Error(r.status>=500?
+      '서버 또는 데이터베이스가 일시적으로 응답하지 않습니다. 기존 기록은 삭제되지 않았습니다. 새로고침 후 확인해주세요.':
+      '서버 응답이 올바르지 않습니다. 새로고침해 주세요. (HTTP '+r.status+')');
+  }
+  let j;
+  try{j=await r.json()}catch{throw Error('서버 데이터가 불완전합니다. 새로고침해 주세요.');}
+  if(!r.ok||j.error)throw Error(j.error||'처리 오류 (HTTP '+r.status+')');
+  return j;
+}
+async function api(path,data,files=false){
+  const r=await fetch(path,{method:'POST',
+    headers:files?{}:{'Content-Type':'application/json'},
+    body:files?data:JSON.stringify(data),credentials:'same-origin'});
+  return readJsonResponse(r);
+}
 function tab(t){['vote','result','admin'].forEach(x=>{$(x).style.display=x===t?'block':'none';$('nav-'+x).classList.toggle('on',x===t)});refresh();}
-async function refresh(){try{state=await(await fetch('/api/state',{cache:'no-store'})).json();render();}catch(e){notify('연결 오류: '+e.message)}}
+async function refresh(){
+  try{
+    const r=await fetch('/api/state',{cache:'no-store'});
+    const nextState=await readJsonResponse(r);
+    state=nextState;
+    notify('');
+    render();
+  }catch(e){
+    notify('연결 오류: '+e.message);
+    const submit=$('submit');
+    if(submit)submit.disabled=true;
+    const status=$('vote-status');
+    if(status)status.textContent='● 서버 연결 확인 중';
+  }
+}
 function render(){if(!state)return;
  $('vote-status').textContent=state.vote_open?'● 투표 진행 중':'● 투표 대기 또는 종료';
  if(state.has_voted)finished=true;
