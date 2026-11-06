@@ -55,7 +55,7 @@
     const testCount=data.submissions.filter(x=>x.is_test).length;
     const pendingCount=data.submissions.filter(x=>x.status==='pending'&&!x.is_test).length;
     const pendingFilter=$('.admin-filters [data-filter="pending"]');
-    if(pendingFilter)pendingFilter.textContent='검수 대기 ('+pendingCount+')';
+    if(pendingFilter)pendingFilter.textContent='미확인 ('+pendingCount+') · 자동 반영 중';
     const testFilter=$('.admin-filters [data-filter="test"]');
     if(testFilter)testFilter.textContent='테스트만 ('+testCount+')';
     let rows=data.submissions;
@@ -66,10 +66,9 @@
       const media=s.mime.startsWith('video/')?
         '<span class="video-thumb" aria-hidden="true">🎬<small>영상 재생</small></span>':
         '<img loading="lazy" src="'+url+'" alt="제출 사진">';
-      const status=s.is_test?'🧪 테스트':s.status==='approved'?'✓ 승인':s.status==='rejected'?'반려':'검수 대기';
+      const status=s.is_test?'🧪 테스트':s.status==='rejected'?'반려 · 미반영':'✓ 자동 반영';
       const buttons=s.is_test?'<button class="promote" data-action="promote" data-id="'+s.id+'">✓ 실제 제출로 전환</button><button class="danger" data-action="delete" data-id="'+s.id+'">테스트 파일 삭제</button>':
-        '<button class="approve" data-action="approved" data-id="'+s.id+'">승인</button>'+
-        '<button class="reject" data-action="rejected" data-id="'+s.id+'">반려</button>'+
+        '<button class="reject" data-action="rejected" data-id="'+s.id+'">반영 제외(반려)</button>'+
         '<button class="danger" data-action="delete" data-id="'+s.id+'">삭제</button>';
       const previewButton='<button class="preview-button" data-preview="'+s.id+'">🔍 '+(s.mime.startsWith('video/')?'영상 크게 재생':'사진 크게 보기')+'</button>';
       const downloadButton='<a class="file-download" href="/api/admin/mission/download/'+s.id+'">⬇ 다운로드</a>';
@@ -178,7 +177,7 @@
       return mutation('/api/admin/mission/delete',{id},'파일 삭제 완료');
     }
     if(action==='approved'||action==='rejected'){
-      if(!confirm((action==='approved'?'이 파일을 승인':'이 파일을 반려')+'하시겠습니까?'))return;
+      if(!confirm((action==='approved'?'이 파일을 승인':'이 파일을 점수와 투표 반영에서 제외')+'하시겠습니까?'))return;
       return mutation('/api/admin/mission/review',{id,action},action==='approved'?'승인 완료 · 대표작이면 투표 화면에 반영됩니다.':'반려 완료');
     }
   });
