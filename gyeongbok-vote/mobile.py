@@ -239,6 +239,44 @@ def serve_media_bytes(data,mime):
     headers["Content-Length"]=str(total)
     return Response(data,mimetype=mime,headers=headers)
 
+@mission_bp.post("/api/mission/<int:team>/<token>/delete/<int:file_id>")
+def participant_delete_submission(team, token, file_id):
+    """Allow a team to remove its own unapproved uploads, including test files.
+
+    Approved or voting-linked media must be managed by the organizer
+    to avoid silently altering awarded points or a live competition.
+    """
+    connect, q = dbtools()
+    db = connect()
+    try:
+        if not token_ok(db,q,team,token):
+            return jsonify(error="이 조의 유효한 QR 링크가 필요합니다."),403
+        # This lock serializes deletion with organizer approval.
+        rec=q(db, "SELECT id,team,mission_code,filename,status,is_test FROM mission_submissions "
+              "WHERE id=? AND team=? FOR UPDATE",(file_id,team))
+        if not rec:
+            return jsonify(error="파일을 찾을 수 없거나 다른 조의 파일입니다."),404
+        cfg=q(db,"SELECT test_mode FROM mission_settings WHERE id=1")
+        if rec["is_test"] and not cfg["test_mode"] and not session.get("admin"):
+            return jsonify(error="행사 전 테스트 파일은 운영진에게 삭제를 요청해주세요."),403
+        if rec["status"]=="approved":
+            return jsonify(error="승인된 파일은 점수에 반영되어 직접 삭제할 수 없습니다. 운영진에게 삭제를 요청해주세요."),409
+        active=q(db,"SELECT team FROM teams WHERE team=? AND "
+                 "(vote_photo_submission_id=? OR vote_video_submission_id=?)",
+                 (team,file_id,file_id))
+        if active:
+            return jsonify(error="투표 대표작으로 등록된 파일은 운영진만 삭제할 수 있습니다."),409
+        q(db,"DELETE FROM mission_submissions WHERE id=? AND team=?",(file_id,team))
+        db.commit()
+        return jsonify(ok=True,deleted_id=file_id,
+                       message="파일을 삭제했습니다. 제출 현황과 진행 상태가 갱신됩니다.")
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @mission_bp.get("/api/mission/<int:team>/<token>/media/<int:file_id>")
 def participant_media(team,token,file_id):
     connect,q=dbtools()
