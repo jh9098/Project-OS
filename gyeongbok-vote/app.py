@@ -116,10 +116,18 @@ def state():
     try:
         s=query(c,"SELECT vote_open,reveal FROM settings WHERE id=1")
         ts=query(c,"SELECT team,photo_title,video_title,mission_score,photo_data IS NOT NULL AS photo,video_data IS NOT NULL AS video FROM teams ORDER BY team",all=True)
+        from scorecard import calculate_mission_scores
+        auto_scores=calculate_mission_scores(c,query,ts)
+        for t in ts:
+            detail=auto_scores[int(t['team'])]
+            t['mission_score']=detail['normalized']
+            t['mission_raw']=detail['raw']
+            t['completed_missions']=detail['completed']
         device_hash=h(g.voter_device)
         already=query(c,"SELECT device_hash FROM public_votes WHERE device_hash=?",(device_hash,))
-        result={"status":"ok","admin":bool(session.get('admin')),"vote_open":bool(s['vote_open']),"reveal":bool(s['reveal']),"teams":ts,"database":'PostgreSQL' if IS_PG else '임시 저장소',"has_voted":bool(already)}
+        result={"status":"ok","admin":bool(session.get('admin')),"vote_open":bool(s['vote_open']),"reveal":bool(s['reveal']),"teams":ts,"database":'PostgreSQL' if IS_PG else '임시 저장소',"has_voted":bool(already),"automatic_mission_scoring":True}
         if session.get('admin') or s['reveal']:
+            result['mission_breakdown']={str(t):v for t,v in auto_scores.items()}
             legacy=query(c,"SELECT photo_team,video_team FROM votes",all=True)
             current=query(c,"SELECT photo_team,video_team,voter_team,absentee FROM public_votes",all=True)
             ballots=legacy+current
@@ -219,14 +227,20 @@ def settings():
 @admin_only
 def team():
     d=request.get_json(silent=True) or {}
-    try:t=int(d.get('team',0));score=float(d.get('score',0))
-    except:return jsonify(error='입력값 오류'),400
-    if t not in range(1,6) or not 0<=score<=70:return jsonify(error='조 또는 점수를 확인하세요.'),400
-    p=str(d.get('photo_title',''))[:80];v=str(d.get('video_title',''))[:80]
+    try:
+        t=int(d.get('team',0))
+    except (ValueError,TypeError):
+        return jsonify(error='조 선택 오류'),400
+    if t not in range(1,6):return jsonify(error='조 선택 오류'),400
+    p=str(d.get('photo_title',''))[:80]
+    v=str(d.get('video_title',''))[:80]
     c=connect()
     try:
-        query(c,"UPDATE teams SET photo_title=?,video_title=?,mission_score=? WHERE team=?",(p,v,score,t));c.commit()
-        return jsonify(ok=True)
+        # Never change historical manual score: the active mission score is
+        # calculated from review approvals whenever /api/state is requested.
+        query(c,"UPDATE teams SET photo_title=?,video_title=? WHERE team=?",(p,v,t))
+        c.commit()
+        return jsonify(ok=True,automatic_mission_scoring=True)
     finally:c.close()
 
 @app.post('/api/admin/upload')
