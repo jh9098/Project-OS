@@ -159,12 +159,22 @@
     if(!res.ok||j.error)throw new Error(j.error||defaultError||'서버 요청 실패');
     return j;
   }
+  let lastStateSignature=null;
   async function refresh() {
     if(busy)return;
     try {
       const res=await fetch(base+'/state'+(testMode?'?test=1':''),{cache:'no-store'});
       const j=await readJsonResponse(res,'미션 데이터를 불러올 수 없습니다.');
-      data=j;render();
+      const stateSignature=JSON.stringify({
+        submissions:j.submissions,missions:j.missions,uploads_open:j.uploads_open,
+        test_mode:j.test_mode,organizer_video_uploaded:j.organizer_video_uploaded
+      });
+      data=j;
+      // Keep existing preview elements intact when polling unchanged evidence.
+      if(stateSignature!==lastStateSignature){
+        lastStateSignature=stateSignature;
+        render();
+      }
     }catch(err){notify(err.message||'네트워크 연결을 확인해주세요.')}
   }
   async function optimizePhoto(file) {
