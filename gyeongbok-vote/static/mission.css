@@ -65,3 +65,18 @@
 .archive-links>a.archive-test{background:#fff4de;border-color:#dfc38f;color:#806222}
 .team-archive-link{width:100%;margin:5px 0 6px;font-size:13px;padding:14px}
 @media(max-width:600px){.archive-links>a{flex:1 1 calc(50% - 9px)}.archive-links>.archive-main{flex-basis:100%}#archive-team{max-width:100%;flex:1}}
+
+
+/* Live automatic mission scoring cards. Review approvals control these values. */
+.auto-score-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.auto-score-card{border:1px solid #d3e1e5;background:linear-gradient(155deg,#fff,#f4f9fa);border-radius:12px;padding:15px;color:#254357;min-width:0}
+.auto-score-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.auto-score-top strong{font-size:18px}
+.auto-score-top b{font-size:24px;color:#214f68}
+.auto-score-top b small{font-size:12px;color:#748894}
+.auto-score-track{height:7px;background:#deeaee;border-radius:40px;overflow:hidden;margin-top:10px}
+.auto-score-track span{display:block;height:100%;background:#3f8392;border-radius:40px;transition:width .25s}
+.auto-score-meta{font-size:12px;color:#638191;margin:9px 0;font-weight:bold}
+.auto-score-card p{font-size:11px;line-height:1.6;color:#526e7d;margin:5px 0}
+.auto-score-card .auto-score-pending{color:#a4772a;background:#fff4dd;padding:7px;border-radius:7px}
+@media(max-width:650px){.auto-score-grid{grid-template-columns:1fr}.auto-score-card{padding:14px}}
