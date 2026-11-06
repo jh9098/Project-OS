@@ -2,7 +2,7 @@
   'use strict';
   const $=s=>document.querySelector(s);
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-  let data=null,filter='pending',busy=false,refreshTimer=0;
+  let data=null,filter='all',busy=false,refreshTimer=0;
   function show(msg){const n=$('#notice');n.hidden=false;n.textContent=msg;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>n.hidden=true,6000)}
   async function send(url,payload) {
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(payload)});
@@ -40,8 +40,8 @@
         '<div class="auto-score-track"><span style="width:'+Math.min(100,Number(x.normalized||0)/70*100)+'%"></span></div>'+
         '<div class="auto-score-meta">원점수 '+(x.raw||0)+'/120 · 완료 '+(x.completed||0)+'/6개</div>'+
         '<p>필수 사진 '+(x.photo_done?'✓ 20점':'대기')+' · 필수 영상 '+(x.video_done?'✓ 30점':'대기')+'</p>'+
-        '<p>자유 미션: '+esc(free)+'</p>'+
-        (partial?'<p class="auto-score-pending">3장 증빙 추가 검수: '+esc(partial)+'</p>':'')+'</div>';
+        '<p>자유 미션: '+escape(free)+'</p>'+
+        (partial?'<p class="auto-score-pending">3장 증빙 추가 검수: '+escape(partial)+'</p>':'')+'</div>';
     }).join('');
     const qrMarkup=data.links.map(a=>{
       const url='/api/admin/mission/qr.png?team='+a.team;
@@ -53,6 +53,9 @@
     $('#qr-grid').innerHTML=qrMarkup;
     $('#test-links').innerHTML=data.links.map(a=>'<a target="_blank" rel="noopener" href="'+escape(a.url)+'?test=1">'+a.team+'조 테스트 제출 ↗</a>').join('');
     const testCount=data.submissions.filter(x=>x.is_test).length;
+    const pendingCount=data.submissions.filter(x=>x.status==='pending'&&!x.is_test).length;
+    const pendingFilter=$('.admin-filters [data-filter="pending"]');
+    if(pendingFilter)pendingFilter.textContent='검수 대기 ('+pendingCount+')';
     const testFilter=$('.admin-filters [data-filter="test"]');
     if(testFilter)testFilter.textContent='테스트만 ('+testCount+')';
     let rows=data.submissions;
