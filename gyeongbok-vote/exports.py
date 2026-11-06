@@ -66,9 +66,11 @@ def _make_zip(team_filter, kind, scope, include_vote):
                 clauses.append("team=?")
                 params.append(team_filter)
             if kind == "photo":
-                clauses.append("mime LIKE 'image/%'")
+                clauses.append("mime LIKE ?")
+                params.append('image/%')
             elif kind == "video":
-                clauses.append("mime LIKE 'video/%'")
+                clauses.append("mime LIKE ?")
+                params.append('video/%')
             where = " AND ".join(clauses)
             # Metadata query has no LIMIT; all saved submissions are exported.
             records = q(db, """SELECT id,team,mission_code,filename,mime,status,is_test,size_bytes
