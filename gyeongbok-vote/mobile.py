@@ -361,6 +361,35 @@ def set_uploads_open():
         db.commit();return jsonify(ok=True)
     finally:db.close()
 
+@mission_bp.post("/api/admin/mission/promote-test")
+@admin_required
+def promote_test_submission():
+    """Repair an event submission accidentally stored while rehearsal mode was on.
+    Explicit per-file approval required; no bulk conversion of rehearsal data.
+    """
+    body=request.get_json(silent=True) or {}
+    try:
+        fid=int(body.get("id",0))
+    except (ValueError,TypeError):
+        return jsonify(error="파일 번호 오류"),400
+    connect,q=dbtools()
+    db=connect()
+    try:
+        row=q(db,"SELECT id,is_test FROM mission_submissions WHERE id=? FOR UPDATE",(fid,))
+        if not row:
+            return jsonify(error="파일을 찾을 수 없습니다."),404
+        if not row["is_test"]:
+            return jsonify(error="이미 실제 제출물입니다."),400
+        q(db,"UPDATE mission_submissions SET is_test=FALSE,status='pending',reviewed_at=NULL WHERE id=?",(fid,))
+        db.commit()
+        return jsonify(ok=True,message="실제 제출물로 전환했습니다. 이제 내용을 검토해 승인하세요.")
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @mission_bp.post("/api/admin/mission/review")
 @admin_required
 def review_upload():
