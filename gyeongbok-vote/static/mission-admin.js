@@ -90,6 +90,17 @@
     mutation('/api/admin/mission/test-mode',{enabled:!data.test_mode},
       data.test_mode?'실제 행사 제출 모드로 전환했습니다. 테스트 파일 일괄 삭제도 확인하세요.':'사전 테스트 모드를 켰습니다. 이제 조별 QR로 연습 제출할 수 있습니다.');
   });
+  const archiveTeam=$('#archive-team');
+  const refreshArchiveLinks=()=>{
+    const team=Number(archiveTeam.value)||0;
+    document.querySelectorAll('#archive-links [data-archive-kind]').forEach(link=>{
+      link.href='/api/admin/mission/archive.zip?team='+team+
+        '&scope='+encodeURIComponent(link.dataset.archiveScope)+
+        '&kind='+encodeURIComponent(link.dataset.archiveKind);
+    });
+  };
+  archiveTeam.addEventListener('change',refreshArchiveLinks);
+  refreshArchiveLinks();
   $('#toggle-uploads').addEventListener('click',()=>{
     if(!data)return;
     if(data.uploads_open&&!confirm('모든 참가자의 사진·영상 제출을 마감할까요?'))return;
