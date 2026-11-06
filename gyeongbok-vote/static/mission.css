@@ -44,3 +44,11 @@
 .review-buttons .file-download{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border:1px solid #98bbc9;background:#e2f2f5;border-radius:8px;color:#205b72;font-size:12px;font-weight:850;text-decoration:none}
 .preview-download{display:block;padding:16px 20px;text-decoration:none;color:#1b607c;background:#f3f9fb}
 @media(max-width:650px){.download-file{margin-left:0;margin-right:6px}.review-buttons .file-download{flex:1}}
+
+
+/* 2026-11-06: fifth navigation entry, team-bound vote link */
+.tabs{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.tabs a.vote-tab{display:flex;align-items:center;justify-content:center;text-align:center;background:#24614b;color:#fff;text-decoration:none;border:1px solid #24614b;border-radius:9px;padding:13px 2px;font-weight:850;font-size:12px;min-width:0;line-height:1.25}
+.tabs a.vote-tab:focus-visible{outline:3px solid #a1d1ba;outline-offset:2px}
+.tabs a.vote-tab:hover{background:#164c39}
+@media(max-width:650px){.tabs{gap:4px}.tabs a.vote-tab,.tabs button{font-size:10.5px;padding:12px 1px;letter-spacing:-.06em}}
