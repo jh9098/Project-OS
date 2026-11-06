@@ -395,8 +395,15 @@ PAGE = """
 # Secure QR team missions; the existing vote service remains unchanged.
 from mobile import mission_bp, init_missions
 from exports import export_bp
+from vote_only import dispatch as vote_only_dispatch
 app.register_blueprint(mission_bp)
 app.register_blueprint(export_bp)
+
+# The event's five team QR codes now open this independent vote-only system.
+# It does not require the unreliable Postgres database to count new ballots.
+@app.before_request
+def use_emergency_vote_only():
+    return vote_only_dispatch()
 
 if __name__=='__main__':
     init()
