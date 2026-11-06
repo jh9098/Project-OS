@@ -42,7 +42,7 @@
     const ok = items.filter(x => x.status === 'approved').length;
     const pending = items.filter(x => x.status === 'pending').length;
     const need = thresholds[code] || 1;
-    return {ok,pending,need,done:ok>=need,items};
+    return {ok,pending,need,done:ok+pending>=need,items};
   }
   function progressCount() {
     const submitted = c => {const x=statusFor(c);return x.ok+x.pending>=x.need};
@@ -65,7 +65,7 @@
     const media=row.mime.startsWith('video/')?
       '<video controls playsinline preload="metadata" src="'+url+'"></video>':
       '<img loading="lazy" src="'+url+'" alt="제출된 증빙">';
-    const status=row.is_test?'🧪 테스트 파일 (점수·투표 미반영)':row.status==='approved'?'승인':row.status==='rejected'?'반려':'검수 대기';
+    const status=row.is_test?'🧪 테스트 파일 (점수·투표 미반영)':row.status==='rejected'?'반려 · 미반영':'✓ 자동 반영';
     return '<div class="evidence'+(row.mime.startsWith('video/')?' video':'')+'">'+media+
       '<small>'+escape(status)+' · '+escape(row.filename)+'</small>'+
       '<a class="view-original" href="'+url+'" target="_blank" rel="noopener">🔍 파일 크게 보기 ↗</a>'+
@@ -77,7 +77,7 @@
     const isVideo=m.code.startsWith('V');
     const mandatory=m.code==='H04'||isVideo;
     const badge=m.code==='H04'?'필수 사진':isVideo?'필수 영상 택1':'자유 선택';
-    const label=stat.done?'<span class="tag green">검수 완료</span>':
+    const label=stat.done?'<span class="tag green">✓ 자동 반영</span>':
        stat.pending?'<span class="tag">검수 대기 '+stat.pending+'</span>':
        stat.items.length?'<span class="tag red">확인 필요</span>':'<span class="tag grey">미제출</span>';
     const mediaType=isVideo?'video/mp4,video/webm,video/quicktime,.mov':
@@ -99,7 +99,7 @@
       '<div class="action-row"><label class="upload-label'+(!data.uploads_open?' disabled':'')+'">📤 '+(isVideo?'사이트에 직접 올리기 (선택)':'사진 올리기')+
       '<input type="file" data-upload="'+escape(m.code)+'" accept="'+mediaType+'" '+(isVideo?'':'multiple')+' '+(!data.uploads_open?'disabled':'')+'></label>'+
       '<button type="button" data-tab-jump="map">📍 지도 보기</button></div>'+
-      '<p class="caption">'+statusHelp+(data.test_mode||testMode?' · 사전 테스트 제출이며 실제 점수에 반영되지 않습니다.':' · 제출 후 운영진이 검수합니다.')+'</p>'+
+      '<p class="caption">'+statusHelp+(data.test_mode||testMode?' · 사전 테스트 제출이며 실제 점수에 반영되지 않습니다.':' · 제출하면 승인 없이 자동 반영됩니다.')+'</p>'+
       (stat.items.length?'<div class="evidences">'+stat.items.map(evidenceMarkup).join('')+'</div>':'')+
       '</div></article>';
   }
@@ -122,7 +122,7 @@
       data.submissions.map(e=>{
         const url=base+'/media/'+e.id+(e.is_test?'?test=1':'');
         const downloadUrl=base+'/download/'+e.id+(e.is_test?'?test=1':'');
-        const status=e.is_test?'🧪 테스트 · 점수·투표 미반영':e.status==='approved'?'✓ 검수 완료':e.status==='rejected'?'반려 · 재제출 가능':'⏳ 검수 대기';
+        const status=e.is_test?'🧪 테스트 · 점수·투표 미반영':e.status==='rejected'?'반려 · 재제출 가능':'✓ 자동 반영';
         return '<div class="upload-history">'+
           (e.mime.startsWith('video/')?'<video controls playsinline preload="metadata" src="'+url+'"></video>':
           '<a href="'+url+'" target="_blank" rel="noopener"><img loading="lazy" alt="제출 사진 크게 보기" src="'+url+'"></a>')+
@@ -145,7 +145,7 @@
       $('#missions').prepend(banner);
     }
     const label=$('#progress').nextElementSibling;
-    if(label)label.textContent=enabled?'연습 제출 진행률 (실제 점수와 별개)':'제출 진행률 (승인·채점 별도)';
+    if(label)label.textContent=enabled?'연습 제출 진행률 (실제 점수와 별개)':'제출 진행률 (자동 채점 반영)';
   }
   async function refresh() {
     if(busy)return;
