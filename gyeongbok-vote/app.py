@@ -323,7 +323,9 @@ PAGE = """
 
 # Secure QR team missions; the existing vote service remains unchanged.
 from mobile import mission_bp, init_missions
+from exports import export_bp
 app.register_blueprint(mission_bp)
+app.register_blueprint(export_bp)
 
 if __name__=='__main__':
     init()
