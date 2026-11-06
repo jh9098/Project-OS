@@ -53,6 +53,12 @@
     return Math.min(6,mandatoryPhoto+videoDone+Math.min(4,extra));
   }
   function iconFor(m) { return m.code.startsWith('V')?'🎬':m.code.startsWith('H')?'📸':m.code.startsWith('M')?'🤝':'🏛️' }
+  function canDeleteSubmission(row) {
+    return row.status!=='approved' && (!row.is_test || data.test_mode || testMode);
+  }
+  function deleteButton(row) {
+    return canDeleteSubmission(row)?'<button type="button" class="delete-submission" data-delete-file="'+Number(row.id)+'">🗑 삭제</button>':'<small class="delete-locked">승인된 작품 · 삭제는 운영진에게 요청</small>';
+  }
   function evidenceMarkup(row) {
     const url=base+'/media/'+row.id+(row.is_test?'?test=1':'');
     const downloadUrl=base+'/download/'+row.id+(row.is_test?'?test=1':'');
@@ -63,7 +69,8 @@
     return '<div class="evidence'+(row.mime.startsWith('video/')?' video':'')+'">'+media+
       '<small>'+escape(status)+' · '+escape(row.filename)+'</small>'+
       '<a class="view-original" href="'+url+'" target="_blank" rel="noopener">🔍 파일 크게 보기 ↗</a>'+
-      '<a class="download-file" href="'+downloadUrl+'">⬇ 개별 다운로드</a></div>';
+      '<a class="download-file" href="'+downloadUrl+'">⬇ 개별 다운로드</a>'+
+      deleteButton(row)+'</div>';
   }
   function cardMarkup(m) {
     const stat=statusFor(m.code);
@@ -122,7 +129,8 @@
           '<div><b>'+escape(e.mission_code)+' · '+escape(data.missions.find(m=>m.code===e.mission_code)?.title||'미션')+'</b>'+
           '<p>'+escape(e.filename)+'</p><small>'+escape(status)+'</small><br>'+
           '<a class="view-original" target="_blank" rel="noopener" href="'+url+'">🔍 크게 보기 ↗</a>'+
-          '<a class="download-file" href="'+downloadUrl+'">⬇ 다운로드</a></div></div>';
+          '<a class="download-file" href="'+downloadUrl+'">⬇ 다운로드</a>'+
+          deleteButton(e)+'</div></div>';
       }).join(''):
       '<div class="empty">아직 제출된 작품이 없습니다.<br>미션 카드를 열고 사진·영상을 올려주세요.</div>');
     const enabled=Boolean(data.test_mode||testMode);
@@ -193,12 +201,44 @@
     }catch(err){notify('제출 '+succeeded+'개 성공 · '+(err.message||'오류'))}
     finally {setBusy(false);await refresh();}
   }
+  async function deleteSubmission(id) {
+    if(busy || !data) return;
+    const item=data.submissions.find(x=>Number(x.id)===Number(id));
+    if(!item || !canDeleteSubmission(item)) {
+      notify('승인된 작품 또는 볼 수 없는 파일은 운영진에게 삭제를 요청해주세요.');
+      return;
+    }
+    const desc=item.mission_code+' · '+item.filename;
+    if(!confirm('이 사진·영상을 정말 삭제하시겠습니까?\\n'+desc+'\\n\\n삭제한 파일은 복구할 수 없으며 미션 제출 현황에서도 사라집니다.'))return;
+    busy=true;
+    try{
+      const res=await fetch(base+'/delete/'+encodeURIComponent(String(id)),{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({})
+      });
+      let result;
+      try{result=await res.json()}catch{throw Error('서버 응답을 확인해주세요.')}
+      if(!res.ok||result.error)throw Error(result.error||'파일 삭제에 실패했습니다.');
+      notify('파일 삭제 완료 · 제출 현황을 갱신했습니다.');
+    }catch(err){
+      notify('삭제 실패: '+(err.message||'네트워크 오류'));
+    }finally{busy=false;await refresh();}
+  }
+  function handleDeleteClick(event){
+    const button=event.target.closest('[data-delete-file]');
+    if(!button)return false;
+    event.preventDefault();
+    deleteSubmission(Number(button.dataset.deleteFile));
+    return true;
+  }
+  $('#uploads-list').addEventListener('click',handleDeleteClick);
   document.querySelector('.tabs').addEventListener('click',e=>{
     const el=e.target.closest('[data-tab]');
     if(!el)return;
     tab(el.dataset.tab);
   });
   $('#mission-list').addEventListener('click',e=>{
+    if(handleDeleteClick(e))return;
     const open=e.target.closest('[data-open]');
     if(open){openCode=openCode===open.dataset.open?'':open.dataset.open;render();return}
     const map=e.target.closest('[data-tab-jump]');
