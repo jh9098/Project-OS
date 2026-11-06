@@ -324,7 +324,12 @@ def admin_mission_state():
           FROM mission_submissions ORDER BY created_at DESC LIMIT 250""",all=True)
         rec=q(db,"SELECT uploads_open,test_mode FROM mission_settings WHERE id=1")
         ts=q(db,"SELECT team,photo_data IS NOT NULL AS photo_ready,video_data IS NOT NULL AS video_ready,mission_score FROM teams ORDER BY team",all=True)
-        return jsonify(ok=True,links=[{"team":r["team"],"url":get_team_link(r["team"],r["token"])} for r in links],
+        from scorecard import calculate_mission_scores
+        scores=calculate_mission_scores(db,q,ts)
+        for row in ts:
+            row["mission_score"]=scores[int(row["team"])]["normalized"]
+        return jsonify(ok=True,automatic_mission_scoring=True,
+          scorecards={str(team):detail for team,detail in scores.items()},links=[{"team":r["team"],"url":get_team_link(r["team"],r["token"])} for r in links],
           submissions=[public_submission(r) for r in docs],uploads_open=bool(rec["uploads_open"]),
           test_mode=bool(rec["test_mode"]),test_count=sum(1 for r in docs if r["is_test"]),teams=ts)
     finally:db.close()
@@ -488,6 +493,10 @@ ADMIN_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta
 <section id="admin-login" class="admin-login"><h2>관리자 로그인</h2><p>기존 투표 사이트 관리자 비밀번호를 사용하세요.</p><input id="admin-password" type="password" placeholder="관리자 비밀번호"><button id="login-button">로그인</button></section>
 <section id="admin-panel" hidden><div class="test-mode-controls" id="test-mode-controls"><div class="test-mode-copy"><div class="test-mode-heading"><strong>🧪 사전 테스트 모드</strong><span id="test-mode-badge">확인 중</span></div><p id="test-mode-description">조별 QR로 업로드한 파일을 테스트로 분리합니다. 테스트 파일은 점수·투표에 반영되지 않습니다.</p></div><button id="toggle-test-mode">설정 불러오는 중</button></div><div class="admin-strip"><div><strong>참가자 업로드</strong><small id="upload-state"></small></div><button id="toggle-uploads">마감 / 재개</button><button id="clear-tests">테스트 파일만 일괄 삭제</button></div>
 <div class="panel-box"><h2>① 조별 QR코드 5개</h2><p>회사 쪽지에 조별 QR 이미지를 보내세요. 아래 파일은 회사 쪽지에 첨부할 수 있습니다.</p><a class="action-link" href="/api/admin/mission/qr.zip">⬇ 5개 조 QR 이미지 ZIP 다운로드</a><div id="qr-grid" class="qr-grid"></div><p class="caption">QR에 포함된 조별 링크는 길고 무작위로 생성된 주소입니다. 외부에 공유되지 않도록 주의하세요.</p></div>
+<div class="panel-box" id="automatic-scores"><h2>🏆 미션 70점 자동 집계</h2>
+<p>관리자가 증빙을 승인하면 점수를 자동 계산합니다. 필수 영화 포스터 20점 + 필수 영상 30점 + 승인된 자유 미션 최고점 4개를 합산하여 원점수 120점을 70점으로 환산합니다. 사진·영상 투표점수(10+20)는 <a href="/" style="color:#246c87;font-weight:800">투표 관리 → 결과</a>에서 자동 합산됩니다.</p>
+<div id="auto-score-grid" class="auto-score-grid"><p>검수 데이터를 불러오는 중입니다.</p></div>
+<p class="caption">사진 3장이 필요한 M01·M11·H05는 각 미션당 승인된 사진이 3장 이상이어야 완료됩니다. 검수 대기·반려·테스트 자료는 점수에서 제외됩니다. 별도로 등록한 대표 사진·영상도 필수 미션 점수로 인정합니다.</p></div>
 <div class="panel-box" id="archive-panel"><h2>📦 사진·영상 전체 다운로드</h2>
 <p>각 조가 제출한 모든 사진·영상을 ZIP으로 백업합니다. 검수 대기·승인·반려 파일과 운영진이 카카오톡으로 받아 투표용으로 등록한 작품도 포함합니다. 테스트 자료는 별도로 저장합니다.</p>
 <div class="archive-toolbar"><label for="archive-team"><strong>다운로드할 조</strong></label>
