@@ -64,7 +64,7 @@
         '<span class="video-thumb" aria-hidden="true">🎬<small>영상 재생</small></span>':
         '<img loading="lazy" src="'+url+'" alt="제출 사진">';
       const status=s.is_test?'🧪 테스트':s.status==='approved'?'✓ 승인':s.status==='rejected'?'반려':'검수 대기';
-      const buttons=s.is_test?'<button class="danger" data-action="delete" data-id="'+s.id+'">테스트 파일 삭제</button>':
+      const buttons=s.is_test?'<button class="promote" data-action="promote" data-id="'+s.id+'">✓ 실제 제출로 전환</button><button class="danger" data-action="delete" data-id="'+s.id+'">테스트 파일 삭제</button>':
         '<button class="approve" data-action="approved" data-id="'+s.id+'">승인</button>'+
         '<button class="reject" data-action="rejected" data-id="'+s.id+'">반려</button>'+
         '<button class="danger" data-action="delete" data-id="'+s.id+'">삭제</button>';
@@ -166,6 +166,10 @@
     if(previewButton){openPreview(Number(previewButton.dataset.preview));return;}
     const b=e.target.closest('[data-action]');if(!b)return;
     const id=Number(b.dataset.id),action=b.dataset.action;
+    if(action==='promote'){
+      if(!confirm('이 파일이 오늘 실제 행사에서 제출된 자료인지 확인했습니까?\\n\\n실제 제출물로 변경되면 점수 반영을 위해 별도로 승인해야 합니다. 사전 연습 파일은 전환하지 마세요.'))return;
+      return mutation('/api/admin/mission/promote-test',{id},'실제 제출로 전환했습니다. 이제 검수 대기에서 승인하세요.');
+    }
     if(action==='delete'){
       if(!confirm('제출 파일을 완전히 삭제하시겠습니까? 승인된 투표 작품일 경우 투표 화면에서도 제거됩니다.'))return;
       return mutation('/api/admin/mission/delete',{id},'파일 삭제 완료');
