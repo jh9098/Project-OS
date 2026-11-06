@@ -164,10 +164,10 @@ def media(team,kind):
             # Fall back to newest actual upload, without an approval gate.
             # Pull only the selected media bytes (not all team submissions).
             code_clause="mission_code='H04'" if kind=='photo' else "mission_code IN ('V01','V02','V03')"
-            mime_clause="mime LIKE 'image/%'" if kind=='photo' else "mime LIKE 'video/%'"
+            mime_pattern="image/%" if kind=='photo' else "video/%"
             row=query(c,"SELECT data,mime AS type FROM mission_submissions WHERE team=? "
-                        "AND is_test=FALSE AND status<>'rejected' AND "+code_clause+" AND "+mime_clause+
-                        " ORDER BY id DESC LIMIT 1",(team,))
+                        "AND is_test=FALSE AND status<>'rejected' AND "+code_clause+
+                        " AND mime LIKE ? ORDER BY id DESC LIMIT 1",(team,mime_pattern))
             if not row or row['data'] is None:return 'Not found',404
         from mobile import serve_media_bytes
         return serve_media_bytes(row['data'],row['type'] or ('image/jpeg' if kind=='photo' else 'video/mp4'))
