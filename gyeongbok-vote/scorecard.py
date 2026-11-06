@@ -23,20 +23,20 @@ def calculate_mission_scores(db, query, teams):
     rows = query(db,
         "SELECT team, mission_code, COUNT(*) AS n "
         "FROM mission_submissions "
-        "WHERE status='approved' AND is_test=FALSE "
+        "WHERE status<>'rejected' AND is_test=FALSE "
         "GROUP BY team, mission_code",
         all=True)
-    approved = defaultdict(dict)
+    submitted = defaultdict(dict)
     for row in rows:
         team = int(row["team"])
         code = str(row["mission_code"])
         if team in range(1, 6) and code in MISSION_POINTS:
-            approved[team][code] = int(row["n"])
+            submitted[team][code] = int(row["n"])
 
     result = {}
     for team in teams:
         tid = int(team["team"])
-        counts = approved[tid]
+        counts = submitted[tid]
         complete = {
             code for code in MISSION_POINTS
             if counts.get(code, 0) >= (3 if code in THREE_PHOTO else 1)
@@ -67,8 +67,8 @@ def calculate_mission_scores(db, query, teams):
             "video_done": video_done,
             "video_code": video_code or ("운영진등록" if video_done else None),
             "selected_free": [{"code":c,"points":MISSION_POINTS[c]} for c in credited],
-            "approved_files": sum(counts.values()),
-            "approved_codes": sorted(complete),
+            "counted_files": sum(counts.values()),
+            "counted_codes": sorted(complete),
             "incomplete_three_photo": {
                 c: counts[c] for c in sorted(THREE_PHOTO)
                 if 0 < counts.get(c, 0) < 3
