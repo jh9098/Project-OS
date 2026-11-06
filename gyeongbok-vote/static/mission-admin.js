@@ -3,6 +3,7 @@
   const $=s=>document.querySelector(s);
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   let data=null,filter='all',busy=false,refreshTimer=0;
+  let lastRenderSignature=null;
   function show(msg){const n=$('#notice');n.hidden=false;n.textContent=msg;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>n.hidden=true,6000)}
   async function readJsonResponse(r) {
     const type=(r.headers.get('Content-Type')||'').toLowerCase();
@@ -26,7 +27,18 @@
       const r=await fetch('/api/admin/mission/state',{cache:'no-store'});
       if(r.status===401){$('#admin-login').hidden=false;$('#admin-panel').hidden=true;return;}
       const j=await readJsonResponse(r);
-      data=j;$('#admin-login').hidden=true;$('#admin-panel').hidden=false;render();
+      const signature=JSON.stringify({
+        uploads_open:j.uploads_open,test_mode:j.test_mode,test_count:j.test_count,
+        submissions:j.submissions,scorecards:j.scorecards,teams:j.teams
+      });
+      data=j;
+      $('#admin-login').hidden=true;$('#admin-panel').hidden=false;
+      // Preserve DOM photo previews while polling unchanged metadata:
+      // rewriting <img> elements repeatedly sends hundreds of BYTEA reads.
+      if(signature!==lastRenderSignature){
+        lastRenderSignature=signature;
+        render();
+      }
     }catch(e){show(e.message);}
   }
   function render() {
