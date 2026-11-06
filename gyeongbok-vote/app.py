@@ -41,10 +41,19 @@ def connect():
         raise RuntimeError('DATABASE_URL is required for persistent event voting')
     if IS_PG:
         import psycopg2
-        from psycopg2.extras import RealDictCursor
-        c=psycopg2.connect(DATABASE_URL,connect_timeout=7,sslmode='require')
-        c.autocommit=False
-        return c
+        # DNS for the free Render Postgres occasionally disappears during
+        # brief restarts. Retry only connection setup, never SQL writes.
+        # This cannot repair a prolonged platform outage, but gives short
+        # dropouts a chance to recover without duplicate submissions.
+        for attempt in range(3):
+            try:
+                c=psycopg2.connect(DATABASE_URL,connect_timeout=4,sslmode='require')
+                c.autocommit=False
+                return c
+            except psycopg2.OperationalError:
+                if attempt == 2:
+                    raise
+                time.sleep((0.35,0.85)[attempt])
     import sqlite3
     c=sqlite3.connect('/tmp/gyeongbok_vote_event.db',timeout=10)
     c.row_factory=sqlite3.Row
